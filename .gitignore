@@ -1,0 +1,40 @@
+# --- Python environment & caches ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# --- Secrets (API keys: wandb, ACN-Data) ---
+.env
+.env.*
+!.env.example
+
+# --- Experiment outputs (too big / regenerable; see METRICS_AND_LOGGING.md) ---
+results/*
+!results/README.md
+wandb/
+runs/
+tb_logs/
+*.zip
+*.pt
+*.pth
+*.ckpt
+checkpoints/
+
+# --- Downloaded data (ACN-Data etc.) ---
+data/*
+!data/README.md
+
+# --- Editors / OS / Office temp files ---
+.vscode/
+.idea/
+.DS_Store
+~$*
+*.swp

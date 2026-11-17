@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=68,<81"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smartev2g"
+version = "0.0.1"
+description = "Risk-aware deep RL for EV fleet charging (V2G) under unexpected early departures, built on EV2Gym."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+authors = [
+    { name = "Yeshas Krishna" },
+    { name = "Leopold Sokoudjou Gatsing" },
+]
+# Exact pinned versions live in requirements.txt (single source of truth).
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+extend-exclude = ["docs", "notebooks"]
+
+[tool.ruff.lint]
+# E/F = errors, I = import sorting, B = common bugs, UP = modern Python, N = naming
+select = ["E", "F", "I", "B", "UP", "N"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
