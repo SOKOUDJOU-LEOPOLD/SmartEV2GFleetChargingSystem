@@ -1,5 +1,6 @@
 # Runtime dependencies (pinned, tested together on Python 3.12, Linux).
-# Install:  uv pip install -r requirements.txt   (or: pip install -r requirements.txt)
+# Install (from the repo root):  uv pip install -r requirements.txt -r requirements-dev.txt
+# (or the same with plain `pip`). This also installs our own package, see the last line.
 # Rule: adding a dependency => add it here, pinned, in the same PR (CODING_RULES.md §9).
 
 # --- Simulator -----------------------------------------------------------
@@ -36,3 +37,7 @@ seaborn==0.13.2
 tensorboard==2.21.0
 wandb==0.31.0
 python-dotenv==1.2.4
+
+# --- Our own package (src/smartev2g), installed in editable mode -----------
+# "Editable" = code changes are picked up without reinstalling.
+-e .
