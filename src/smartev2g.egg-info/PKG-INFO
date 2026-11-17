@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: smartev2g
+Version: 0.0.1
+Summary: Risk-aware deep RL for EV fleet charging (V2G) under unexpected early departures, built on EV2Gym.
+Author: Yeshas Krishna, Leopold Sokoudjou Gatsing
+Requires-Python: <3.13,>=3.12
+Description-Content-Type: text/markdown
+
+# SmartEV2GFleetChargingSystem
+Our research question is: Can a model-free RL agent optimize V2G fleet scheduling under partial observability, implicitly managing the risk of unannounced early departures, and what economic or grid-performance trade-offs emerge from this robust policy?
