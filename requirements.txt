@@ -1,0 +1,38 @@
+# Runtime dependencies (pinned, tested together on Python 3.12, Linux).
+# Install:  uv pip install -r requirements.txt   (or: pip install -r requirements.txt)
+# Rule: adding a dependency => add it here, pinned, in the same PR (CODING_RULES.md §9).
+
+# --- Simulator -----------------------------------------------------------
+# EV2Gym = the EV charging / V2G simulator we build on. Ref: [R1]
+ev2gym==2.0.0
+gymnasium==1.4.0
+# EV2Gym imports these but does not declare them, so we pin them ourselves.
+pandapower==3.5.6
+numba==0.68.1
+multicopula==0.0.2
+psutil==7.2.2
+pillow==13.0.0
+# EV2Gym still uses pkg_resources, which was removed in setuptools >= 81.
+setuptools==80.10.2
+
+# --- Reinforcement learning ----------------------------------------------
+# PyTorch (Linux wheel includes CUDA support, so the GPUs can be used if faster).
+torch==2.15.0
+# Stable-Baselines3 = ready-made, tested PPO. Ref: [R8], [R13]
+stable-baselines3==2.9.2
+# sb3-contrib = RecurrentPPO (LSTM) for the stretch goal. Ref: [R17]
+sb3-contrib==2.9.2
+tqdm==4.70.1
+
+# --- Data, analysis, plotting --------------------------------------------
+numpy==2.4.6
+pandas==2.3.3
+scipy==1.18.1
+pyyaml==6.0.3
+matplotlib==3.11.2
+seaborn==0.13.2
+
+# --- Experiment tracking -------------------------------------------------
+tensorboard==2.21.0
+wandb==0.31.0
+python-dotenv==1.2.4
