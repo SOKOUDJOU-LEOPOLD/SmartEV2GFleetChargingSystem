@@ -31,7 +31,7 @@ In plain words: drivers announce when they will leave a charging site, but some 
 
 ## Quick setup
 ```bash
-python3.12 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt && pip install -e .
+uv venv --python 3.12 .venv && source .venv/bin/activate      # or: python3.12 -m venv .venv
+uv pip install -r requirements.txt -r requirements-dev.txt && uv pip install -e .
 pytest
 ```

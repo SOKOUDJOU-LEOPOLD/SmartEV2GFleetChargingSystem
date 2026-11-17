@@ -6,10 +6,14 @@ Read [`CODING_RULES.md`](CODING_RULES.md) first — it is the full rulebook. Thi
 ```bash
 git clone https://github.com/SOKOUDJOU-LEOPOLD/SmartEV2GFleetChargingSystem.git
 cd SmartEV2GFleetChargingSystem
-python3.12 -m venv .venv
+# Recommended: uv (fast, no sudo needed; install: https://docs.astral.sh/uv/)
+uv venv --python 3.12 .venv
 source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
-pip install -e .
+uv pip install -r requirements.txt -r requirements-dev.txt
+uv pip install -e .
+# Alternative without uv (needs the python3.12-venv system package):
+#   python3.12 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt -r requirements-dev.txt && pip install -e .
 pre-commit install
 wandb login            # only needed for real training runs
 ```

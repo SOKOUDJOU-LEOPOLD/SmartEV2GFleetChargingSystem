@@ -12,7 +12,7 @@
 
 ## Tasks
 - [ ] Pin `ev2gym` version; record it in ADR-0002
-- [ ] `configs/env/v2g_profitmax_20port.yaml` — based on EV2Gym's `V2GProfitPlusLoads.yaml` example: 20 chargers, one transformer, V2G enabled
+- [ ] `configs/env/v2g_profitmax_20port.yaml` — based on EV2Gym's `example_config_files/V2GProfitMax.yaml` (25 chargers, 1 transformer, 15-min steps, 112 steps/episode) → set 20 chargers. **Remove the `ev_specs_file:` line** (it is a path relative to EV2Gym's source repo and breaks when installed via pip; without it EV2Gym uses its bundled EV specs)
 - [ ] `src/smartev2g/envs/make_env.py` — seeded env factory (one function everyone uses)
 - [ ] Inspect and document: observation vector (`V2G_profit_max` state function), action space, episode length, timestep size
 - [ ] Document EV2Gym internals we will need for the wrapper: where departure time is stored (`ev.time_of_departure`), desired capacity, when/how EVs are removed, where per-EV results are recorded → `docs/decisions/ADR-0002-env-internals.md`
