@@ -16,6 +16,7 @@
   - `<phase>`: `p0` … `p7` (see roadmap)
   - Examples: `leopold/chore/p0-repo-setup`, `yeshas/feat/p2-departure-wrapper`, `leopold/exp/p4-main-grid`
 - **One logical group of tasks per branch.** Always branch from the latest `main`.
+- **Publish a new branch immediately:** right after creating it, push it (`git push -u origin <branch>`) and check it is visible on GitHub **before** making any local changes on it. Teammates can then see who is working on what.
 - **Never commit directly to `main`.** Changes reach `main` only through a Pull Request with green CI and a review by the other teammate.
 - Shared work: the person who opens the PR owns the branch; the other teammate reviews.
 - If your branch needs work from another branch, get that PR merged into `main` first, then `git rebase main`.

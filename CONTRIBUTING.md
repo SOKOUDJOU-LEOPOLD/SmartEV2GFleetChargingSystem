@@ -22,10 +22,11 @@ wandb login            # only needed for real training runs
 ```bash
 git checkout main && git pull
 git checkout -b <firstname>/<type>/<phase>-<short-name>   # e.g. yeshas/feat/p2-departure-wrapper
+git push -u origin <branch>      # publish it right away; check it shows on GitHub before working
 # ... work, with small commits:  git commit -m "feat(wrapper): ..."
 ruff format . && ruff check . && pytest
 git fetch origin && git rebase origin/main
-git push -u origin <branch>
+git push
 # open a Pull Request into main, fill in the template, ask your teammate to review
 ```
 
