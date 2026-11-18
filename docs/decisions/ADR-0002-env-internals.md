@@ -34,7 +34,7 @@ Consequence: a car is charged/discharged during its departure step, then leaves;
 - `EV2Gym.reset(seed)` calls `np.random.seed(seed)` and `random.seed(seed)` — it re-seeds the **global** generators. `reset()` without a seed draws a new seed from the global NumPy generator, so a run is fully determined by its first seed. Verified: same seed + same actions ⇒ identical episode (`tests/test_make_env.py`).
 - `tr_seed: -1` is replaced by the first seed and then kept for later resets. It only affects transformer loads/solar, which are disabled in our config, so it does not matter now.
 
-### Typical simulated day (AFAP rule, 30 seeds; `scripts/inspect_env.py`)
+### Typical simulated day (AFAP rule, seeds 0–29; `scripts/inspect_env.py`)
 | Quantity | Value |
 |---|---|
 | Episode | 112 steps × 15 min = 28 h, starts 05:00, random weekday |
@@ -42,6 +42,9 @@ Consequence: a car is charged/discharged during its departure step, then leaves;
 | Announced stay | mean 7.4 h (3.5–13.3 h), median 31 steps |
 | SoC at arrival | mean 0.74 (0.22–0.93) |
 | Cars below target when charged at full speed | 0.9 % |
+
+The 0.9 % is 4 cars out of 447, and all of them still left 99.0–99.8 % full (a sub-1 % gap). So without early departures, full-speed charging satisfies essentially every driver.
+Raw data: run `20261117-203019_inspect-env` (`evs.csv`, `episodes.csv`, `run_info.json`; see EXPERIMENT_LOG).
 
 So drivers usually have hours of slack, which is exactly what makes V2G discharging tempting — and risky if they leave early.
 

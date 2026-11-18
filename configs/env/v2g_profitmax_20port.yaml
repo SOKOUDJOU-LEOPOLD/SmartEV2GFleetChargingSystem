@@ -28,7 +28,7 @@ simulation_length: 112 #90 # in steps per simulation
 ##############################################################################
 # Date and Time
 ##############################################################################
-# Year, month, 
+# Year, month,
 year: 2022 # 2015-2023
 month: 1 # 1-12
 day: 17 # 1-31
@@ -67,7 +67,7 @@ number_of_ports_per_cs: 1
 charging_network_topology: None #./config_files/charging_topology_10.json
 
 simulate_grid: False # True or False
-network_info: 
+network_info:
   vm_pu: 1.0 # Voltage magnitude in per unit
   s_base: 1000 # Base power in kVA
   load_multiplier: 1 # Load multiplier for the grid
@@ -130,7 +130,7 @@ heterogeneous_ev_specs: True #if False, each EV has the same specifications
 ##############################################################################
 # Default Model values
 ##############################################################################
-# These values are used if not using a charging network topology file or 
+# These values are used if not using a charging network topology file or
 # if the EV specifications are not provided
 
 # Default Transformer model
@@ -138,7 +138,7 @@ transformer:
   max_power: 100 # in kW
 
 # Default Charging Station model
-charging_station:  
+charging_station:
   min_charge_current: 0 # Amperes
   max_charge_current: 32 # Amperes
   min_discharge_current: 0 # Amperes (actual value <=0)
@@ -155,7 +155,7 @@ ev:
   max_dc_charge_power: 50 # in kW
   max_discharge_power: -11 # in kW
   min_discharge_power: 0 # in kW
-  ev_phases: 3  
+  ev_phases: 3
   charge_efficiency: 1 # 0-1 (0% - 100%)
   discharge_efficiency: 1 # 0-1 (0% - 100%)
   transition_soc: 1 # 0-1 (0% - 100%)
