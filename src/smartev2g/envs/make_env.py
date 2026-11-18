@@ -13,9 +13,13 @@ Plain-language picture of the environment (Ref: [R1] EV2Gym):
 
 from __future__ import annotations
 
+import os
+import tempfile
 from collections.abc import Callable
+from importlib import resources
 from pathlib import Path
 
+import yaml
 from ev2gym.models.ev2gym_env import EV2Gym
 from ev2gym.rl_agent import reward as ev2gym_reward
 from ev2gym.rl_agent import state as ev2gym_state
@@ -47,6 +51,35 @@ def resolve_path(path: str | Path) -> Path:
     return p if p.is_absolute() else REPO_ROOT / p
 
 
+# Prefix for files shipped inside an installed package, e.g.
+# "pkg://ev2gym/data/ev_specs_v2g_enabled2024.json". Works for any install location.
+PKG_PREFIX = "pkg://"
+
+# Config keys that hold file paths and must be resolved before EV2Gym reads them.
+PATH_KEYS = ["ev_specs_file"]
+
+
+def resolve_data_path(value: str) -> str:
+    """'pkg://<package>/<file>' -> file inside that installed package; else repo-relative."""
+    if value.startswith(PKG_PREFIX):
+        package, _, rel = value[len(PKG_PREFIX) :].partition("/")
+        path = Path(str(resources.files(package).joinpath(rel)))
+    else:
+        path = resolve_path(value)
+    if not path.is_file():
+        raise FileNotFoundError(f"Config file path not found: {value!r} -> {path}")
+    return str(path)
+
+
+def load_env_config(config_path: str | Path = DEFAULT_ENV_CONFIG) -> dict:
+    """Read an EV2Gym YAML config and turn its file paths into absolute paths."""
+    config = yaml.safe_load(resolve_path(config_path).read_text())
+    for key in PATH_KEYS:
+        if key in config:
+            config[key] = resolve_data_path(config[key])
+    return config
+
+
 def make_env(
     config_path: str | Path = DEFAULT_ENV_CONFIG,
     seed: int | None = None,
@@ -70,16 +103,25 @@ def make_env(
         (`np.random.default_rng(seed)`) so it does not change EV2Gym's random
         draws (see ADR-0002).
     """
-    return EV2Gym(
-        config_file=str(resolve_path(config_path)),
-        seed=seed,
-        state_function=STATE_FUNCTIONS[state_function],
-        reward_function=REWARD_FUNCTIONS[reward_function],
-        save_replay=False,
-        save_plots=False,
-        lightweight_plots=True,
-        verbose=verbose,
-    )
+    # EV2Gym only accepts a config *file*, so we write the resolved config to a
+    # temporary file, build the env (it reads everything in its constructor),
+    # then delete the file.
+    fd, tmp = tempfile.mkstemp(suffix=".yaml", prefix="ev2gym_cfg_")
+    try:
+        with os.fdopen(fd, "w") as f:
+            yaml.safe_dump(load_env_config(config_path), f)
+        return EV2Gym(
+            config_file=tmp,
+            seed=seed,
+            state_function=STATE_FUNCTIONS[state_function],
+            reward_function=REWARD_FUNCTIONS[reward_function],
+            save_replay=False,
+            save_plots=False,
+            lightweight_plots=True,
+            verbose=verbose,
+        )
+    finally:
+        os.remove(tmp)
 
 
 def observation_names(env: EV2Gym) -> list[str]:

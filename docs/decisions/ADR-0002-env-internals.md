@@ -10,7 +10,8 @@ The `UnexpectedDepartureWrapper` (Phase 2) must make some cars leave earlier tha
 ## Findings
 
 ### Versions and config
-- `ev2gym==2.0.0` (MIT license). Our env config `configs/env/v2g_profitmax_20port.yaml` is the example `V2GProfitMax.yaml` with 20 chargers and **no `ev_specs_file` line** (that line is a path relative to EV2Gym's source repo and crashes when installed with pip; without it EV2Gym loads its bundled EV specs).
+- `ev2gym==2.0.0` (MIT license). Our env config `configs/env/v2g_profitmax_20port.yaml` is the example `V2GProfitMax.yaml` with 20 chargers. Its `ev_specs_file` is written as `pkg://ev2gym/data/ev_specs_v2g_enabled2024.json` ("this file inside the installed ev2gym package"), which `make_env` resolves to an absolute path. The original `./ev2gym/data/...` path only works inside EV2Gym's source repo.
+- **Pitfall (bug found and fixed in Phase 1):** if `ev_specs_file` is missing, EV2Gym silently falls back to `data/ev_specs.json`, where **none** of the 13 car models can discharge (`max_ac_discharge_power = 0`) — V2G is then impossible and the whole study meaningless. `ev_specs_v2g_enabled2024.json` has 8 real V2G-capable models (Tesla Model 3, …; 46–77 kWh, 11 kW AC charge/discharge). Regression tests `test_ev_specs_are_v2g_capable` and `test_v2g_discharging_happens` guard this.
 
 ### One step of `EV2Gym.step(actions)`, in order
 1. For each charging station `cs.step(...)`: apply the actions (charge/discharge) for this step, add profit, **then** remove every car with `cs.current_step >= ev.time_of_departure` (`EV.is_departing`). Removed cars are returned as `departing_evs` and their satisfaction `current_capacity / desired_capacity` is reported.
@@ -38,13 +39,14 @@ Consequence: a car is charged/discharged during its departure step, then leaves;
 | Quantity | Value |
 |---|---|
 | Episode | 112 steps × 15 min = 28 h, starts 05:00, random weekday |
-| Cars per episode | mean 14.9 (11–20) |
-| Announced stay | mean 7.4 h (3.5–13.3 h), median 31 steps |
-| SoC at arrival | mean 0.74 (0.22–0.93) |
-| Cars below target when charged at full speed | 0.9 % |
+| Cars per episode | mean 15.2 (11–20) |
+| Announced stay | mean 7.3 h (3.5–12.75 h), median 30 steps |
+| SoC at arrival | mean 0.75 (0.30–0.94) |
+| Battery sizes | 46–77 kWh (Tesla Model 3 57.5 kWh most common) |
+| Cars below target when charged at full speed | 0.2 % (1 of 455 cars, left at 99.7 %) |
 
-The 0.9 % is 4 cars out of 447, and all of them still left 99.0–99.8 % full (a sub-1 % gap). So without early departures, full-speed charging satisfies essentially every driver.
-Raw data: run `20261117-203019_inspect-env` (`evs.csv`, `episodes.csv`, `run_info.json`; see EXPERIMENT_LOG).
+So without early departures, full-speed charging satisfies essentially every driver.
+Raw data: run `20261117-205450_inspect-env` (`evs.csv`, `episodes.csv`, `run_info.json`; see EXPERIMENT_LOG). It supersedes run `20261117-203019_inspect-env`, which used the wrong (non-V2G) car models.
 
 So drivers usually have hours of slack, which is exactly what makes V2G discharging tempting — and risky if they leave early.
 
