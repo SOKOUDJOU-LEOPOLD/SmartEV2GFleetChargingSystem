@@ -16,7 +16,7 @@ training:
   total_timesteps: 1000000 # ~8,900 simulated days of 112 steps
   n_envs: 16 # simulated days played in parallel (one CPU process each)
   device: cpu # chosen by the CPU vs GPU timing test (scripts/timing_test.py)
-  torch_threads: 4 # CPU threads for the PPO network update (timing test); null = PyTorch default
+  torch_threads: 1 # CPU threads for the PPO update: 1 was fastest in the timing test (ADR-0003)
   # VecNormalize: rescale observations (and rewards) to ~mean 0, std 1 so that
   # prices (~0.1 EUR) and step numbers (0..112) are on similar scales. Ref: [R13]
   normalize_obs: true
