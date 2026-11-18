@@ -60,7 +60,8 @@ Note: "arrival < T_actual" only means the earliest possible early departure is o
 
 Why this approach:
 - The agent only ever sees `t_dep = T_scheduled − t` (the observation is built after the car has already left) ⇒ no information leak. A unit test will assert this.
-- Reuses EV2Gym's own departure code, so profit, satisfaction and statistics stay consistent.
+- Reuses EV2Gym's own departure code, so profit, satisfaction and statistics stay consistent — **provided** the wrapper also refreshes one cached value (next point).
+- **Refresh `max_energy_AFAP`.** When a car plugs in, EV2Gym computes `ev.max_energy_AFAP` ("the most energy this car could get at full speed before it leaves") from `time_of_departure` (`ev_charger.py` line 279 → `ev.calculate_max_energy_with_AFAP`). The end-of-episode statistic `energy_user_satisfaction` (`utilities/utils.py` line 61) divides by it. So right after setting `ev.time_of_departure = T_actual`, the wrapper must call `ev.calculate_max_energy_with_AFAP(cs.get_max_power())` before stepping; otherwise early leavers get a stale denominator based on the announced stay. A unit test will check it.
 - No changes to EV2Gym's source (no fork to maintain).
 
 Why not the alternatives:
