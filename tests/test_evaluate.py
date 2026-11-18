@@ -44,3 +44,13 @@ def test_shortfall_matches_definition():
     _, cars = evaluate_policy(RandomPolicy(seed=0), [1_000_000])
     expected = np.maximum(0, cars["soc_target"] - cars["soc_final"])
     np.testing.assert_allclose(cars["shortfall"], expected)
+
+
+def test_energy_delivered_reward_equals_net_energy():
+    """Pipeline-check reward: summed over a day it must equal charged - discharged kWh."""
+    kwargs = {"reward_function": "energy_delivered"}
+    for policy in [AFAPPolicy(), RandomPolicy(seed=0)]:
+        episodes, _ = evaluate_policy(policy, [1_000_000], kwargs)
+        row = episodes.iloc[0]
+        net = row["total_energy_charged"] - row["total_energy_discharged"]
+        assert abs(row["return"] - net) < 1e-6

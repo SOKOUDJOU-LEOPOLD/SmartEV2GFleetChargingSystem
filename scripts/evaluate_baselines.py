@@ -6,6 +6,9 @@ Usage:
     python scripts/evaluate_baselines.py --config configs/experiments/p1_sanity_ppo.yaml
 
 Saved in results/<run_id>/: test_episodes.csv, test_evs.csv, run_info.json.
+Also logged to wandb (one run per policy, same group as the PPO runs of this config),
+with the same metric names as PPO's test results ("test/return", ...), so the
+baselines appear next to PPO in the dashboard.
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ import pandas as pd
 from smartev2g.agents.baselines import AFAPPolicy, RandomPolicy
 from smartev2g.agents.train import env_kwargs, load_config
 from smartev2g.eval.evaluate import evaluate_policy, scenario_seeds
+from smartev2g.utils.logging import init_wandb
 from smartev2g.utils.run_info import RESULTS_DIR, RunInfo, make_run_dir, make_run_id
 
 # Columns printed in the console summary (all columns are saved in the CSV).
@@ -31,6 +35,23 @@ SUMMARY_COLUMNS = [
     "mean_shortfall",
     "total_transformer_overload",
 ]
+
+
+def log_to_wandb(cfg, run_dir: Path, policy_name: str, episodes: pd.DataFrame, prefix: str):
+    """One wandb run per baseline: mean of every metric + the per-day table."""
+    import wandb
+
+    run = init_wandb(
+        {**cfg, "agent": policy_name},
+        run_id=f"{run_dir.name}_{policy_name}",
+        run_dir=run_dir,
+        group=cfg["name"],
+        tags=[policy_name, "baseline", cfg["env"]["reward_function"]],
+    )
+    means = episodes.drop(columns=["policy", "seed"]).mean(numeric_only=True)
+    run.summary.update({f"{prefix}/{k}": float(v) for k, v in means.items()})
+    run.log({f"{prefix}/episodes": wandb.Table(dataframe=episodes)})
+    run.finish()
 
 
 def main() -> None:
@@ -47,11 +68,13 @@ def main() -> None:
     info = RunInfo(run_dir, "scripts/evaluate_baselines.py", args.config, seeds, vars(args))
     info.data["env_config"] = load_config(cfg["env"]["config"])
 
+    prefix = "val" if args.split == "validation" else "test"
     episodes, cars = [], []
     for policy in [AFAPPolicy(), RandomPolicy(seed=args.random_seed)]:
         ep, ev = evaluate_policy(policy, seeds, env_kwargs(cfg))
         episodes.append(ep)
         cars.append(ev)
+        log_to_wandb(cfg, run_dir, policy.name, ep, prefix)
     episodes_df = pd.concat(episodes, ignore_index=True)
     pd.concat(cars, ignore_index=True).to_csv(run_dir / f"{args.split}_evs.csv", index=False)
     episodes_df.to_csv(run_dir / f"{args.split}_episodes.csv", index=False)
