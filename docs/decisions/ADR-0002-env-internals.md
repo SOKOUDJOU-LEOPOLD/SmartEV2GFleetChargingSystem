@@ -31,6 +31,8 @@ Consequence: a car is charged/discharged during its departure step, then leaves;
 ### Default reward (`profit_maximization`)
 `reward = profit − Σ_departing 100·exp(−10·satisfaction)`. Used only for the Phase 1 sanity check; Phase 2 replaces the penalty with our squared-shortfall term.
 
+**Phase 1 finding: this reward is a poor learning target.** The penalty is tiny unless a car is almost empty (satisfaction 0.9 → 0.01, 0.5 → 0.67, 0.3 → 5). On the 50 test days a *random* policy scores better (−5.6) than AFAP (−46) while only 0.4 % of cars reach their target, because selling the drivers' energy pays more than the penalty costs. PPO trained on it first learns to drain cars (validation return falls from −24 to about −200) and recovers only slowly (−35 to −44 after 3M steps, for γ = 0.99, 0.999 and 1.0); it never beats its own 50k-step checkpoint. With a simple reward whose optimum is known (`energy_delivered`) the same pipeline reaches AFAP's score (99.98 %), so the problem is the reward, not our code. See EXPERIMENT_LOG (Phase 1). This supports replacing the penalty with our squared-shortfall term with a tunable λ (Phase 2).
+
 ### Random seeds
 - `EV2Gym.reset(seed)` calls `np.random.seed(seed)` and `random.seed(seed)` — it re-seeds the **global** generators. `reset()` without a seed draws a new seed from the global NumPy generator, so a run is fully determined by its first seed. Verified: same seed + same actions ⇒ identical episode (`tests/test_make_env.py`).
 - `tr_seed: -1` is replaced by the first seed and then kept for later resets. It only affects transformer loads/solar, which are disabled in our config, so it does not matter now.
