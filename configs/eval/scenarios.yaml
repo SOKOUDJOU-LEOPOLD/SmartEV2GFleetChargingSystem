@@ -1,0 +1,18 @@
+# Fixed evaluation days (one seed = one simulated day: its cars and prices).
+# These lists are VERSIONED: never change them once results exist (CODING_RULES §5).
+#
+# Why these numbers: when EV2Gym resets without a seed it draws the next day's
+# seed from 0..999,999 (ev2gym_env.py, reset). Training therefore only ever sees
+# seeds < 1,000,000. Validation and test days start at 1,000,000 and 2,000,000,
+# so they can NEVER appear during training, and never overlap each other.
+# Ref: [R14] (keep train / validation / test separate).
+
+validation:
+  # Used DURING training to pick the best checkpoint (over-fitting check).
+  start: 1000000
+  count: 10
+
+test:
+  # Used ONLY for final results. Never used to choose hyperparameters or checkpoints.
+  start: 2000000
+  count: 50
