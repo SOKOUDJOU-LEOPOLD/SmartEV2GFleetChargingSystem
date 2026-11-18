@@ -54,3 +54,35 @@ def test_energy_delivered_reward_equals_net_energy():
         row = episodes.iloc[0]
         net = row["total_energy_charged"] - row["total_energy_discharged"]
         assert abs(row["return"] - net) < 1e-6
+
+
+def test_baselines_saved_locally_even_if_wandb_fails(tmp_path, monkeypatch):
+    """Local CSVs + run_info.json are the source of truth: a wandb error must not lose them."""
+    import importlib.util
+    import sys
+
+    import pytest
+
+    from smartev2g.envs.make_env import REPO_ROOT
+
+    spec = importlib.util.spec_from_file_location(
+        "evaluate_baselines", REPO_ROOT / "scripts" / "evaluate_baselines.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    def broken_wandb(*args, **kwargs):
+        raise RuntimeError("wandb is down")
+
+    monkeypatch.setattr(module, "log_to_wandb", broken_wandb)
+    monkeypatch.setattr(module, "scenario_seeds", lambda split, path: [1_000_000])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["x", "--config", "configs/experiments/p1_sanity_ppo.yaml", "--results-dir", str(tmp_path)],
+    )
+    with pytest.raises(RuntimeError):
+        module.main()
+    (run_dir,) = tmp_path.iterdir()
+    for name in ["test_episodes.csv", "test_evs.csv", "run_info.json"]:
+        assert (run_dir / name).exists(), name

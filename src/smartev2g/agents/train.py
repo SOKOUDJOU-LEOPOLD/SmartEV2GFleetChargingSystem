@@ -22,6 +22,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 import torch
 import yaml
 from stable_baselines3 import PPO
@@ -112,15 +113,31 @@ def make_logger(run_dir: Path, restart: int = 0, verbose: bool = True) -> Logger
 
 
 def latest_checkpoint(run_dir: Path) -> tuple[Path, Path] | None:
-    """Most recent (model.zip, vecnormalize.pkl) pair in run_dir/checkpoints."""
+    """Most recent COMPLETE (model.zip, vecnormalize.pkl) pair in run_dir/checkpoints.
+
+    A job can stop between saving the model and saving its rescaling statistics;
+    such a half-saved checkpoint is skipped and the previous complete one is used.
+    """
     ckpts = sorted(
         (run_dir / "checkpoints").glob("ppo_*_steps.zip"),
         key=lambda p: int(re.search(r"_(\d+)_steps", p.name).group(1)),
     )
-    if not ckpts:
-        return None
-    steps = re.search(r"_(\d+)_steps", ckpts[-1].name).group(1)
-    return ckpts[-1], run_dir / "checkpoints" / f"ppo_vecnormalize_{steps}_steps.pkl"
+    for model in reversed(ckpts):
+        steps = re.search(r"_(\d+)_steps", model.name).group(1)
+        norm = run_dir / "checkpoints" / f"ppo_vecnormalize_{steps}_steps.pkl"
+        if norm.is_file():
+            return model, norm
+    return None
+
+
+def load_run_config(config_path: str | Path | None, resume_dir: Path | None) -> dict[str, Any]:
+    """Config for a run. A resumed run reloads ITS OWN saved config (config_resolved.yaml),
+    so earlier --set changes are kept; the experiment YAML is only used for new runs."""
+    if resume_dir is not None:
+        return load_config(Path(resume_dir).resolve() / "config_resolved.yaml")
+    if config_path is None:
+        raise ValueError("config_path is required for a new run")
+    return load_config(config_path)
 
 
 def apply_settings(cfg: dict[str, Any], settings: dict[str, Any]) -> None:
@@ -136,7 +153,7 @@ def apply_settings(cfg: dict[str, Any], settings: dict[str, Any]) -> None:
 
 
 def train(
-    config_path: str | Path,
+    config_path: str | Path | None,
     seed: int,
     results_dir: Path = RESULTS_DIR,
     resume_dir: Path | None = None,
@@ -149,11 +166,12 @@ def train(
     """Train one agent; returns its results folder.
 
     Args:
+        config_path: experiment YAML (ignored when resuming: the run's saved config is used).
         overrides: patch cfg['training'] (e.g. {"total_timesteps": 1000}).
         settings: patch any config value by dotted name (e.g. {"ppo.gamma": 0.999}).
         variant: short label added to the run name and wandb tags (e.g. "gamma0.999").
     """
-    cfg = load_config(config_path)
+    cfg = load_run_config(config_path, resume_dir)
     cfg["training"].update(overrides or {})
     apply_settings(cfg, settings or {})
     if variant:
@@ -163,16 +181,20 @@ def train(
     if resume_dir is not None:
         run_dir = Path(resume_dir)
         run_id = run_dir.name
+        if cfg.get("seed") != seed:
+            raise ValueError(f"{run_id} was started with seed {cfg.get('seed')}, not {seed}")
     else:
         label = f"{cfg['name']}-{variant}" if variant else cfg["name"]
         run_id = make_run_id(f"{label}_s{seed}")
         run_dir = make_run_dir(run_id, root=results_dir)
+        cfg["seed"] = seed  # saved now (run_info.json only exists once a run finishes)
         (run_dir / "config_resolved.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
 
     info = RunInfo(
         run_dir,
         "scripts/train.py",
-        config_path,
+        # A resumed run records the config it actually uses: its own saved copy.
+        run_dir / "config_resolved.yaml" if resume_dir is not None else config_path,
         seeds=[seed],
         args={
             "overrides": overrides or {},
@@ -205,8 +227,8 @@ def train(
 
     # wandb starts AFTER the simulator processes, so they do not inherit its threads.
     tags = [cfg["agent"], f"seed{seed}", cfg["env"]["reward_function"]]
-    if variant:
-        tags.append(variant)
+    if cfg.get("variant"):
+        tags.append(cfg["variant"])
     wandb_run = init_wandb(cfg, run_id, run_dir, group=cfg["name"], tags=tags)
     model.set_logger(make_logger(run_dir, restart, verbose))
 
@@ -248,11 +270,19 @@ def train(
         "train_seconds": round(train_seconds, 1),
         "steps_per_second": round((model.num_timesteps - start_steps) / train_seconds, 1),
     }
+    test_episodes = None
     if run_test:
-        results.update(test_best_model(cfg, run_dir, wandb_run))
+        test_summary, test_episodes = test_best_model(cfg, run_dir)
+        results.update(test_summary)
 
+    # Local files (source of truth) are complete BEFORE anything is sent to wandb,
+    # so a wandb outage cannot lose results.
     info.finish(results=results)
     if wandb_run is not None:
+        if test_episodes is not None:
+            import wandb
+
+            wandb_run.log({"test/episodes": wandb.Table(dataframe=test_episodes)})
         wandb_run.summary.update(results)
         wandb_run.save(str(run_dir / "run_info.json"), base_path=str(run_dir))
         wandb_run.finish()
@@ -261,7 +291,7 @@ def train(
     return run_dir
 
 
-def test_best_model(cfg: dict[str, Any], run_dir: Path, wandb_run=None) -> dict[str, Any]:
+def test_best_model(cfg: dict[str, Any], run_dir: Path) -> tuple[dict[str, Any], pd.DataFrame]:
     """Evaluate the best validation checkpoint (or the final model) on the fixed test days."""
     name = "best" if (run_dir / "best_model.zip").exists() else "final"
     model = PPO.load(run_dir / f"{name}_model.zip", device="cpu")
@@ -281,8 +311,4 @@ def test_best_model(cfg: dict[str, Any], run_dir: Path, wandb_run=None) -> dict[
     means = episodes.drop(columns=["policy", "checkpoint", "seed"]).mean(numeric_only=True)
     summary = {f"test/{k}": float(v) for k, v in means.items()}
     summary["test/checkpoint"] = name
-    if wandb_run is not None:
-        import wandb
-
-        wandb_run.log({"test/episodes": wandb.Table(dataframe=episodes)})
-    return summary
+    return summary, episodes

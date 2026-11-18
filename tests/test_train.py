@@ -100,3 +100,29 @@ def test_apply_settings_changes_nested_values_and_rejects_typos():
     assert cfg == {"ppo": {"gamma": 0.999}, "training": {"n_envs": 4}}
     with pytest.raises(KeyError):
         apply_settings(cfg, {"ppo.gama": 1.0})
+
+
+def test_latest_checkpoint_skips_half_saved_checkpoint(tmp_path):
+    """A job killed between saving the model and its VecNormalize file must not break resume."""
+    ckpts = tmp_path / "checkpoints"
+    ckpts.mkdir()
+    (ckpts / "ppo_896_steps.zip").touch()
+    (ckpts / "ppo_vecnormalize_896_steps.pkl").touch()
+    (ckpts / "ppo_1792_steps.zip").touch()  # newest, but its .pkl was never written
+    model, norm = latest_checkpoint(tmp_path)
+    assert model.name == "ppo_896_steps.zip"
+    assert norm.name == "ppo_vecnormalize_896_steps.pkl"
+    (ckpts / "ppo_vecnormalize_896_steps.pkl").unlink()
+    assert latest_checkpoint(tmp_path) is None
+
+
+def test_resume_uses_the_runs_saved_config(tmp_path):
+    """Resuming must reload config_resolved.yaml (with earlier --set changes), not the YAML."""
+    from smartev2g.agents.train import load_run_config
+
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    saved = {"name": "x", "seed": 3, "env": {"reward_function": "energy_delivered"}}
+    (run_dir / "config_resolved.yaml").write_text(yaml.safe_dump(saved))
+    assert load_run_config(EXPERIMENT, resume_dir=run_dir) == saved
+    assert load_run_config(EXPERIMENT, None)["env"]["reward_function"] == "profit_maximization"

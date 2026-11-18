@@ -4,8 +4,8 @@ Usage:
     python scripts/train.py --config configs/experiments/p1_sanity_ppo.yaml --seed 0
     # long runs: detach so they survive a closed terminal (CODING_RULES §7)
     setsid nohup python scripts/train.py --config ... --seed 0 > results/logs/<name>.log 2>&1 &
-    # continue a run that stopped (uses its latest checkpoint)
-    python scripts/train.py --config ... --seed 0 --resume results/<run_id>
+    # continue a run that stopped (uses its latest checkpoint AND its saved config)
+    python scripts/train.py --seed 0 --resume results/<run_id>
     # try a different value without a new config file (recorded in run_info.json)
     python scripts/train.py --config ... --seed 0 --set ppo.gamma=0.999 --variant gamma0.999
 
@@ -25,7 +25,9 @@ from smartev2g.utils.run_info import RESULTS_DIR
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--config", required=True, help="experiment config (configs/experiments/)")
+    p.add_argument(
+        "--config", help="experiment config (configs/experiments/); not needed with --resume"
+    )
     p.add_argument("--seed", type=int, required=True)
     p.add_argument("--resume", type=Path, help="results/<run_id> folder to continue")
     p.add_argument("--results-dir", type=Path, default=RESULTS_DIR)
@@ -44,6 +46,8 @@ def main() -> None:
     args = p.parse_args()
     if args.seed < 0:
         p.error("--seed must be >= 0")
+    if args.config is None and args.resume is None:
+        p.error("--config is required (unless --resume is given)")
 
     overrides = {
         key: value

@@ -74,7 +74,6 @@ def main() -> None:
         ep, ev = evaluate_policy(policy, seeds, env_kwargs(cfg))
         episodes.append(ep)
         cars.append(ev)
-        log_to_wandb(cfg, run_dir, policy.name, ep, prefix)
     episodes_df = pd.concat(episodes, ignore_index=True)
     pd.concat(cars, ignore_index=True).to_csv(run_dir / f"{args.split}_evs.csv", index=False)
     episodes_df.to_csv(run_dir / f"{args.split}_episodes.csv", index=False)
@@ -86,6 +85,10 @@ def main() -> None:
             for pol, row in summary.iterrows()
         }
     )
+    # Dashboard logging only AFTER the local files are saved, so a wandb outage
+    # cannot lose results.
+    for policy_name, ep in episodes_df.groupby("policy", sort=False):
+        log_to_wandb(cfg, run_dir, policy_name, ep, prefix)
     with pd.option_context("display.width", 200, "display.max_columns", 50):
         print(f"{args.split} days: {len(seeds)} (seeds {seeds[0]}..{seeds[-1]})")
         print(summary.xs("mean", axis=1, level=1).round(3).T)
