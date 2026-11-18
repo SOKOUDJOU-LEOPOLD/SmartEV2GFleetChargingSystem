@@ -123,25 +123,49 @@ def latest_checkpoint(run_dir: Path) -> tuple[Path, Path] | None:
     return ckpts[-1], run_dir / "checkpoints" / f"ppo_vecnormalize_{steps}_steps.pkl"
 
 
+def apply_settings(cfg: dict[str, Any], settings: dict[str, Any]) -> None:
+    """Change config values by dotted name, e.g. {"ppo.gamma": 0.999}. Unknown keys fail."""
+    for dotted, value in settings.items():
+        *parents, leaf = dotted.split(".")
+        node = cfg
+        for key in parents:
+            node = node[key]
+        if leaf not in node:
+            raise KeyError(f"Unknown config key: {dotted}")
+        node[leaf] = value
+
+
 def train(
     config_path: str | Path,
     seed: int,
     results_dir: Path = RESULTS_DIR,
     resume_dir: Path | None = None,
     overrides: dict[str, Any] | None = None,
+    settings: dict[str, Any] | None = None,
+    variant: str | None = None,
     run_test: bool = True,
     verbose: bool = True,
 ) -> Path:
-    """Train one agent; returns its results folder. `overrides` patch cfg['training']."""
+    """Train one agent; returns its results folder.
+
+    Args:
+        overrides: patch cfg['training'] (e.g. {"total_timesteps": 1000}).
+        settings: patch any config value by dotted name (e.g. {"ppo.gamma": 0.999}).
+        variant: short label added to the run name and wandb tags (e.g. "gamma0.999").
+    """
     cfg = load_config(config_path)
     cfg["training"].update(overrides or {})
+    apply_settings(cfg, settings or {})
+    if variant:
+        cfg["variant"] = variant
     t = cfg["training"]
 
     if resume_dir is not None:
         run_dir = Path(resume_dir)
         run_id = run_dir.name
     else:
-        run_id = make_run_id(f"{cfg['name']}_s{seed}")
+        label = f"{cfg['name']}-{variant}" if variant else cfg["name"]
+        run_id = make_run_id(f"{label}_s{seed}")
         run_dir = make_run_dir(run_id, root=results_dir)
         (run_dir / "config_resolved.yaml").write_text(yaml.safe_dump(cfg, sort_keys=False))
 
@@ -150,7 +174,12 @@ def train(
         "scripts/train.py",
         config_path,
         seeds=[seed],
-        args={"overrides": overrides or {}, "resumed": resume_dir is not None},
+        args={
+            "overrides": overrides or {},
+            "settings": settings or {},
+            "variant": variant,
+            "resumed": resume_dir is not None,
+        },
     )
     info.data["config"] = cfg  # experiment config incl. overrides
     info.data["env_config"] = load_config(cfg["env"]["config"])
@@ -176,6 +205,8 @@ def train(
 
     # wandb starts AFTER the simulator processes, so they do not inherit its threads.
     tags = [cfg["agent"], f"seed{seed}", cfg["env"]["reward_function"]]
+    if variant:
+        tags.append(variant)
     wandb_run = init_wandb(cfg, run_id, run_dir, group=cfg["name"], tags=tags)
     model.set_logger(make_logger(run_dir, restart, verbose))
 

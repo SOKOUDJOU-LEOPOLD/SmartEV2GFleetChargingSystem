@@ -90,3 +90,13 @@ def test_latest_checkpoint_picks_highest_step(tmp_path):
     model, norm = latest_checkpoint(tmp_path)
     assert model.name == "ppo_10752_steps.zip"
     assert norm.name == "ppo_vecnormalize_10752_steps.pkl"
+
+
+def test_apply_settings_changes_nested_values_and_rejects_typos():
+    from smartev2g.agents.train import apply_settings
+
+    cfg = {"ppo": {"gamma": 0.99}, "training": {"n_envs": 16}}
+    apply_settings(cfg, {"ppo.gamma": 0.999, "training.n_envs": 4})
+    assert cfg == {"ppo": {"gamma": 0.999}, "training": {"n_envs": 4}}
+    with pytest.raises(KeyError):
+        apply_settings(cfg, {"ppo.gama": 1.0})
