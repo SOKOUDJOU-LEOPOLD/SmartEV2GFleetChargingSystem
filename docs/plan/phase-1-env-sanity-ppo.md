@@ -2,7 +2,7 @@
 
 **Goal:** prove the training pipeline works on the *unmodified* EV2Gym before we change anything ("simplest possible first result", proposal §12).
 
-**Status:** 🟡 In progress (env setup done on `leopold/feat/p1-env-setup`; baselines + sanity PPO next) · **Milestone tag:** `v0.1-pipeline`
+**Status:** 🟡 In progress (env setup merged; V2G car-model fix on `leopold/fix/p1-v2g-ev-specs`; baselines + sanity PPO next) · **Milestone tag:** `v0.1-pipeline`
 
 ## Branches
 | Branch | Content |
@@ -12,7 +12,7 @@
 
 ## Tasks
 - [x] Pin `ev2gym` version; record it in ADR-0002
-- [x] `configs/env/v2g_profitmax_20port.yaml` — based on EV2Gym's `example_config_files/V2GProfitMax.yaml` (25 chargers, 1 transformer, 15-min steps, 112 steps/episode) → set 20 chargers. **Remove the `ev_specs_file:` line** (it is a path relative to EV2Gym's source repo and breaks when installed via pip; without it EV2Gym uses its bundled EV specs)
+- [x] `configs/env/v2g_profitmax_20port.yaml` — based on EV2Gym's `example_config_files/V2GProfitMax.yaml` (25 chargers, 1 transformer, 15-min steps, 112 steps/episode) → set 20 chargers. keep `ev_specs_file` but write it as `pkg://ev2gym/data/ev_specs_v2g_enabled2024.json` (resolved by `make_env`). ⚠️ Do **not** remove it: EV2Gym would fall back to car models that cannot discharge, silently disabling V2G (bug found and fixed on `leopold/fix/p1-v2g-ev-specs`, see ADR-0002)
 - [x] `src/smartev2g/envs/make_env.py` — seeded env factory (one function everyone uses)
 - [x] Inspect and document: observation vector (`V2G_profit_max` state function), action space, episode length, timestep size
 - [x] Document EV2Gym internals we will need for the wrapper: where departure time is stored (`ev.time_of_departure`), desired capacity, when/how EVs are removed, where per-EV results are recorded → `docs/decisions/ADR-0002-env-internals.md`
