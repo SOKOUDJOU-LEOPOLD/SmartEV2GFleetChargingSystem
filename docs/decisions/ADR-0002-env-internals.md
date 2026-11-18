@@ -48,6 +48,16 @@ So drivers usually have hours of slack, which is exactly what makes V2G discharg
 ## Decision: how the wrapper forces an early departure
 **"Just-in-time" swap.** The wrapper keeps the hidden true departure `T_actual` in its own table (keyed by car), never in the car object while the agent can see it. Right **before** calling `env.step()` at the step where `current_step == T_actual`, it sets `ev.time_of_departure = T_actual`. EV2Gym then removes the car inside that same step with its normal logic (satisfaction, statistics, `departing_evs`), and the next observation no longer contains the car. The announced time `T_scheduled` is stored by the wrapper for logging.
 
+**Worked example (steps of 15 min, day starts 05:00).**
+1. Car A arrives at step 20 (10:00) and announces it will leave at step 52 (18:00). EV2Gym stores `time_of_departure = 52`.
+2. On arrival the wrapper draws once with its private RNG. With probability `1 − p_early` nothing changes and Car A leaves at 52 as normal. With probability `p_early` Car A becomes an early leaver: the wrapper picks a hidden `T_actual` **anywhere** in 21…51 (the distribution is chosen in Phase 2, e.g. uniform over the remaining stay), say 40 (15:00), and stores `{Car A: 40}` in its own table. The car object still says 52.
+3. Steps 20–39: the agent sees `t_dep = 52 − t` (32, 31, … 13), while the truth is `40 − t` (20, 19, … 1). It may sell Car A's energy (V2G) believing there is plenty of time.
+4. Step 40, just before `env.step()`: the wrapper sets `time_of_departure = 40`. Inside the step EV2Gym applies the step-40 action, then sees `40 >= 40` and removes Car A with its normal bookkeeping.
+5. Penalty: if Car A leaves at SoC 0.6 with target 1.0, shortfall = 0.4 and penalty = λ_dep × 0.4² = 0.16 λ_dep.
+6. The next observation no longer contains Car A; the agent only notices it vanished 12 steps early.
+
+Note: "arrival < T_actual" only means the earliest possible early departure is one step after arrival (a car cannot leave in the step it arrives). It is a lower bound, not the typical value.
+
 Why this approach:
 - The agent only ever sees `t_dep = T_scheduled − t` (the observation is built after the car has already left) ⇒ no information leak. A unit test will assert this.
 - Reuses EV2Gym's own departure code, so profit, satisfaction and statistics stay consistent.
