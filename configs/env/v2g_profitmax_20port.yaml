@@ -6,14 +6,15 @@
 #
 # Changes from the original (see docs/decisions/ADR-0002-env-internals.md):
 #   - number_of_charging_stations: 25 -> 20   (our proposal: a 20-port site)
-#   - removed `ev_specs_file:` line           (it used a path relative to the
-#     EV2Gym source repo and crashes when EV2Gym is installed with pip;
-#     without it EV2Gym uses its bundled EV specs file)
+#   - ev_specs_file: `./ev2gym/data/...` -> `pkg://ev2gym/data/...`
+#     (same file; the original path only works inside EV2Gym's source repo.
+#     `pkg://` means "inside the installed ev2gym package"; make_env resolves it)
 #
 # Plain-language summary:
 #   - one simulated "episode" = 112 steps of 15 minutes = 28 hours, starting 05:00
 #   - random weekday from the price data (Dutch day-ahead prices)
 #   - each charger has 1 port; cars can charge (+) and discharge to the grid (V2G, -)
+#   - cars are real V2G-capable models (Tesla Model 3, ...), up to 11 kW AC
 #   - every car wants a FULL battery when it leaves (desired_capacity: 1)
 #   - the shared transformer can deliver at most 100 kW
 # =============================================================================
@@ -125,6 +126,10 @@ demand_response:
 # EV Specifications
 ##############################################################################
 heterogeneous_ev_specs: True #if False, each EV has the same specifications
+# Real car models (battery size, charge power, efficiency) drawn by registration share.
+# IMPORTANT: this file lists 8 V2G-capable models. Without this line EV2Gym falls back
+# to data/ev_specs.json, where NO model can discharge -> V2G silently disabled.
+ev_specs_file: pkg://ev2gym/data/ev_specs_v2g_enabled2024.json
 # such as battery capacity, charging rate, etc.
 
 ##############################################################################

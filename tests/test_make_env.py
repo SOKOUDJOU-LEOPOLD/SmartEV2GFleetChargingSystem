@@ -56,3 +56,22 @@ def test_different_seed_different_episode():
     a, _ = run_episode(seed=7)
     b, _ = run_episode(seed=8)
     assert not np.array_equal(a, b)
+
+
+def test_ev_specs_are_v2g_capable(env):
+    """Regression test: without `ev_specs_file`, EV2Gym silently loads car models
+    that cannot discharge, which disables V2G (see ADR-0002)."""
+    specs = env.ev_specs
+    assert len(specs) > 0
+    assert all(s["max_ac_discharge_power"] > 0 for s in specs.values())
+
+
+def test_v2g_discharging_happens():
+    """Action -1 on every port must actually sell energy back to the grid."""
+    e = make_env(seed=3)
+    e.reset(seed=3)
+    done, info = False, {}
+    while not done:
+        _, _, terminated, truncated, info = e.step(-np.ones(e.action_space.shape))
+        done = terminated or truncated
+    assert info["total_energy_discharged"] > 0
