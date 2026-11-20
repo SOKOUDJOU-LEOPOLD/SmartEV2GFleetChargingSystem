@@ -49,6 +49,35 @@ class SB3Policy:
         return action
 
 
+class SharedChargerPolicy(SB3Policy):
+    """A shared per-charger PPO policy (ADR-0004), played on a normal site env.
+
+    Each step: build one observation per charger, ask the same network for one
+    action per charger, and put the 20 actions together for EV2Gym. So it is
+    evaluated with exactly the same code and metrics as every other policy.
+    """
+
+    def act(self, obs: np.ndarray, env) -> np.ndarray:
+        from smartev2g.envs.charger_obs import charger_observations
+
+        per_charger = charger_observations(env.unwrapped)
+        if self.vec_normalize is not None:
+            per_charger = self.vec_normalize.normalize_obs(per_charger)
+        actions, _ = self.model.predict(per_charger, deterministic=self.deterministic)
+        return np.asarray(actions).reshape(-1)
+
+
+# Agent designs: "site" = one network for the whole site (Phase 1),
+# "shared_charger" = one small network shared by all chargers (ADR-0004).
+POLICY_CLASSES = {"site": SB3Policy, "shared_charger": SharedChargerPolicy}
+
+
+def make_sb3_policy(design: str, model, vec_normalize=None, name: str = "PPO") -> SB3Policy:
+    if design not in POLICY_CLASSES:
+        raise ValueError(f"Unknown agent design {design!r}; known: {sorted(POLICY_CLASSES)}")
+    return POLICY_CLASSES[design](model, vec_normalize, name=name)
+
+
 def scenario_seeds(split: str, scenarios_path: str | Path = "configs/eval/scenarios.yaml"):
     """Seeds of the fixed 'validation' or 'test' days (configs/eval/scenarios.yaml)."""
     spec = yaml.safe_load(resolve_path(scenarios_path).read_text())[split]

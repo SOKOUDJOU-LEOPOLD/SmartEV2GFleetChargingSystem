@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 from stable_baselines3.common.callbacks import BaseCallback
 
-from smartev2g.eval.evaluate import SB3Policy, evaluate_policy
+from smartev2g.eval.evaluate import evaluate_policy, make_sb3_policy
 from smartev2g.eval.metrics import EV2GYM_STATS
 from smartev2g.utils.logging import CSVLogger
 
@@ -26,20 +26,24 @@ from smartev2g.utils.logging import CSVLogger
 class EpisodeMetricsCallback(BaseCallback):
     """Log one row per finished training episode (simulated day)."""
 
-    def __init__(self, csv_path: Path, wandb_run=None) -> None:
+    def __init__(self, csv_path: Path, wandb_run=None, step_scale: int = 1) -> None:
         super().__init__()
         self.csv = CSVLogger(csv_path)
+        # SB3 counts one step per environment; with the shared per-charger policy one
+        # simulated step = n_chargers SB3 steps. We log SIMULATOR steps everywhere.
+        self.step_scale = step_scale
         self.wandb_run = wandb_run
         self.n_episodes = 0
 
     def _on_step(self) -> bool:
         for env_idx, done in enumerate(self.locals["dones"]):
-            if not done:
-                continue
             info = self.locals["infos"][env_idx]
+            # Per-charger envs carry the site's episode info on charger 0 only.
+            if not done or "episode" not in info:
+                continue
             self.n_episodes += 1
             row: dict[str, Any] = {
-                "timesteps": self.num_timesteps,
+                "timesteps": self.num_timesteps // self.step_scale,
                 "episode": self.n_episodes,
                 "env_idx": env_idx,
                 "day_seed": info.get("day_seed"),  # which simulated day was played
@@ -54,7 +58,7 @@ class EpisodeMetricsCallback(BaseCallback):
             self.csv.log(row)
             if self.wandb_run is not None:
                 metrics = {f"train_ep/{k}": v for k, v in row.items() if k != "env_idx"}
-                self.wandb_run.log({"timesteps": self.num_timesteps, **metrics})
+                self.wandb_run.log({"timesteps": row["timesteps"], **metrics})
         return True
 
 
@@ -72,8 +76,12 @@ class ValidationCallback(BaseCallback):
         every_steps: int,
         run_dir: Path,
         wandb_run=None,
+        design: str = "site",
+        step_scale: int = 1,
     ) -> None:
         super().__init__()
+        self.design = design  # which policy adapter to evaluate with (eval/evaluate.py)
+        self.step_scale = step_scale  # SB3 steps per simulator step (see EpisodeMetricsCallback)
         self.seeds = seeds
         self.env_kwargs = env_kwargs
         self.every_steps = every_steps
@@ -86,13 +94,18 @@ class ValidationCallback(BaseCallback):
             self.best_return = float(pd.read_csv(val_path)["return"].max())
         self._next_eval = every_steps
 
+    @property
+    def sim_steps(self) -> int:
+        """Simulator steps so far (the unit of every_steps and of our logs)."""
+        return self.num_timesteps // self.step_scale
+
     def _on_training_start(self) -> None:
         # When resuming, continue the schedule from the current step count.
-        while self._next_eval <= self.num_timesteps:
+        while self._next_eval <= self.sim_steps:
             self._next_eval += self.every_steps
 
     def _on_step(self) -> bool:
-        if self.num_timesteps >= self._next_eval:
+        if self.sim_steps >= self._next_eval:
             self._next_eval += self.every_steps
             self.evaluate()
         return True
@@ -100,10 +113,10 @@ class ValidationCallback(BaseCallback):
     def evaluate(self) -> dict[str, Any]:
         t0 = time.perf_counter()
         vec_norm = self.model.get_vec_normalize_env()
-        policy = SB3Policy(self.model, vec_norm, name="PPO")
+        policy = make_sb3_policy(self.design, self.model, vec_norm, name="PPO")
         episodes, _ = evaluate_policy(policy, self.seeds, self.env_kwargs)
         numeric = episodes.drop(columns=["policy", "seed"]).mean(numeric_only=True)
-        row = {"timesteps": self.num_timesteps, **numeric.to_dict()}
+        row = {"timesteps": self.sim_steps, **numeric.to_dict()}
         row["eval_seconds"] = round(time.perf_counter() - t0, 2)
         is_best = row["return"] > self.best_return
         row["is_best"] = bool(is_best)
@@ -115,7 +128,7 @@ class ValidationCallback(BaseCallback):
         self.csv.log(row)
         if self.wandb_run is not None:
             metrics = {f"val/{k}": v for k, v in row.items()}
-            self.wandb_run.log({"timesteps": self.num_timesteps, **metrics})
+            self.wandb_run.log({"timesteps": self.sim_steps, **metrics})
         if self.verbose:
-            print(f"[val] step {self.num_timesteps}: return {row['return']:.2f} best={is_best}")
+            print(f"[val] step {self.sim_steps}: return {row['return']:.2f} best={is_best}")
         return row

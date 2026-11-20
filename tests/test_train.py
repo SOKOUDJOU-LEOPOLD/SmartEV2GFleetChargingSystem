@@ -147,3 +147,37 @@ def test_ppo_does_not_override_training_day_seeds(tiny_config):
     venv.seed(first_day_seed(2, 2))  # what train() does right after creating PPO
     assert venv.venv._seeds == [2000, 2001]
     venv.close()
+
+
+def test_tiny_shared_charger_run(tmp_path, monkeypatch):
+    """ADR-0004 design end to end with ONE simulator (in-process): steps are counted in
+    simulator steps, each day is logged once, and the test uses the shared policy."""
+    monkeypatch.setenv("WANDB_MODE", "disabled")
+    scenarios = tmp_path / "scenarios.yaml"
+    scenarios.write_text(
+        yaml.safe_dump(
+            {
+                "validation": {"start": 1_000_000, "count": 1},
+                "test": {"start": 2_000_000, "count": 2},
+            }
+        )
+    )
+    cfg = yaml.safe_load(resolve_path("configs/experiments/p2_shared_charger_ppo.yaml").read_text())
+    cfg["scenarios"] = str(scenarios)
+    cfg["training"].update(
+        total_timesteps=448, n_envs=1, eval_every_steps=224, checkpoint_every_steps=224
+    )
+    cfg["ppo"].update(n_steps=112, batch_size=560, n_epochs=1)
+    path = tmp_path / "shared.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+
+    run_dir = train(path, seed=0, results_dir=tmp_path / "results", verbose=False)
+    info = json.loads((run_dir / "run_info.json").read_text())["results"]
+    assert info["agent_design"] == "shared_charger"
+    assert info["total_timesteps"] == 448 and info["sb3_timesteps"] == 448 * 20
+    episodes = pd.read_csv(run_dir / "train_episodes.csv")
+    assert len(episodes) == 448 // 112  # one row per simulated day, not per charger
+    assert list(pd.read_csv(run_dir / "val_curve.csv")["timesteps"]) == [224, 448]
+    test = pd.read_csv(run_dir / "test_episodes.csv")
+    assert list(test["seed"]) == [2_000_000, 2_000_001]
+    assert "reward_departure_penalty" in test.columns

@@ -38,9 +38,10 @@ from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 
 from smartev2g.agents.callbacks import EpisodeMetricsCallback, ValidationCallback
+from smartev2g.envs.charger_env import ChargerVecEnv, SiteChargerEnv, SiteDummyVecEnv
 from smartev2g.envs.make_env import make_env, resolve_path
 from smartev2g.envs.wrappers import EpisodeInfo
-from smartev2g.eval.evaluate import SB3Policy, evaluate_policy, scenario_seeds
+from smartev2g.eval.evaluate import evaluate_policy, make_sb3_policy, scenario_seeds
 from smartev2g.utils.logging import init_wandb
 from smartev2g.utils.run_info import RESULTS_DIR, RunInfo, make_run_dir, make_run_id
 
@@ -65,12 +66,38 @@ def env_kwargs(cfg: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _env_factory(kwargs: dict[str, Any]):
+def agent_design(cfg: dict[str, Any]) -> str:
+    """'site' = one network for the whole site (default, Phase 1);
+    'shared_charger' = one small network shared by all chargers (ADR-0004)."""
+    return cfg.get("agent_design", "site")
+
+
+def n_chargers(cfg: dict[str, Any]) -> int:
+    env_cfg = load_config(cfg["env"]["config"])
+    return env_cfg["number_of_charging_stations"] * env_cfg["number_of_ports_per_cs"]
+
+
+def step_scale(cfg: dict[str, Any]) -> int:
+    """SB3 steps per simulator step: 1 for 'site', n_chargers for 'shared_charger'
+    (SB3 sees every charger as its own environment). Configs and logs always count
+    SIMULATOR steps, so both designs are compared on the same simulation budget."""
+    return n_chargers(cfg) if agent_design(cfg) == "shared_charger" else 1
+
+
+def _env_factory(kwargs: dict[str, Any], design: str = "site"):
     def _init():
+        env = EpisodeInfo(make_env(**kwargs))
+        if design == "shared_charger":
+            return SiteChargerEnv(env)  # records the site's episode return itself
         # Monitor records each episode's raw return and length. Ref: [R13]
-        return Monitor(EpisodeInfo(make_env(**kwargs)))
+        return Monitor(env)
 
     return _init
+
+
+def _wrap_sites(venv, design: str):
+    """For the shared per-charger policy, show every charger as its own env (ADR-0004)."""
+    return ChargerVecEnv(venv) if design == "shared_charger" else venv
 
 
 def first_day_seed(seed: int, n_envs: int, restart: int = 0) -> int:
@@ -96,9 +123,12 @@ def make_training_env(
     Copy i starts on day first_day_seed(...) + i; later days follow from it.
     """
     first_seed = first_day_seed(seed, n_envs, restart)
-    factories = [_env_factory(env_kwargs(cfg)) for _ in range(n_envs)]
-    venv = SubprocVecEnv(factories) if n_envs > 1 else DummyVecEnv(factories)
+    design = agent_design(cfg)
+    factories = [_env_factory(env_kwargs(cfg), design) for _ in range(n_envs)]
+    in_process = SiteDummyVecEnv if design == "shared_charger" else DummyVecEnv
+    venv = SubprocVecEnv(factories) if n_envs > 1 else in_process(factories)
     venv.seed(first_seed)
+    venv = _wrap_sites(venv, design)
     t = cfg["training"]
     return VecNormalize(
         venv,
@@ -188,6 +218,7 @@ def train(
     if variant:
         cfg["variant"] = variant
     t = cfg["training"]
+    design, scale = agent_design(cfg), step_scale(cfg)
 
     if resume_dir is not None:
         run_dir = Path(resume_dir)
@@ -251,13 +282,15 @@ def train(
 
     callbacks = CallbackList(
         [
-            EpisodeMetricsCallback(run_dir / "train_episodes.csv", wandb_run),
+            EpisodeMetricsCallback(run_dir / "train_episodes.csv", wandb_run, scale),
             ValidationCallback(
                 scenario_seeds("validation", cfg["scenarios"]),
                 env_kwargs(cfg),
                 t["eval_every_steps"],
                 run_dir,
                 wandb_run,
+                design=design,
+                step_scale=scale,
             ),
             # Resumable checkpoints (CODING_RULES §7). save_freq counts calls = steps / n_envs.
             CheckpointCallback(
@@ -272,7 +305,7 @@ def train(
     t0 = time.perf_counter()
     start_steps = model.num_timesteps
     model.learn(
-        total_timesteps=t["total_timesteps"] - start_steps,
+        total_timesteps=t["total_timesteps"] * scale - start_steps,
         callback=callbacks,
         reset_num_timesteps=ckpt is None,
         progress_bar=False,
@@ -283,9 +316,11 @@ def train(
     venv.close()
 
     results: dict[str, Any] = {
-        "total_timesteps": model.num_timesteps,
+        "agent_design": design,
+        "total_timesteps": model.num_timesteps // scale,  # simulator steps
+        "sb3_timesteps": model.num_timesteps,  # = simulator steps x chargers if shared
         "train_seconds": round(train_seconds, 1),
-        "steps_per_second": round((model.num_timesteps - start_steps) / train_seconds, 1),
+        "steps_per_second": round((model.num_timesteps - start_steps) / scale / train_seconds, 1),
     }
     test_episodes = None
     if run_test:
@@ -314,11 +349,13 @@ def test_best_model(cfg: dict[str, Any], run_dir: Path) -> tuple[dict[str, Any],
     model = PPO.load(run_dir / f"{name}_model.zip", device="cpu")
     vec_norm = None
     norm_path = run_dir / f"{name}_vecnormalize.pkl"
+    design = agent_design(cfg)
     if norm_path.exists():
-        dummy = DummyVecEnv([_env_factory(env_kwargs(cfg))])
+        in_process = SiteDummyVecEnv if design == "shared_charger" else DummyVecEnv
+        dummy = _wrap_sites(in_process([_env_factory(env_kwargs(cfg), design)]), design)
         vec_norm = VecNormalize.load(str(norm_path), dummy)
         vec_norm.training = False  # freeze the rescaling statistics during testing
-    policy = SB3Policy(model, vec_norm, name=cfg["agent"])
+    policy = make_sb3_policy(design, model, vec_norm, name=cfg["agent"])
     episodes, cars = evaluate_policy(
         policy, scenario_seeds("test", cfg["scenarios"]), env_kwargs(cfg)
     )
