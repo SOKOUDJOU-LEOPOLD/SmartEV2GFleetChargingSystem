@@ -42,6 +42,7 @@ class EpisodeMetricsCallback(BaseCallback):
                 "timesteps": self.num_timesteps,
                 "episode": self.n_episodes,
                 "env_idx": env_idx,
+                "day_seed": info.get("day_seed"),  # which simulated day was played
                 # Monitor's numbers are the RAW reward (before VecNormalize rescaling).
                 "return": info["episode"]["r"],
                 "length": info["episode"]["l"],

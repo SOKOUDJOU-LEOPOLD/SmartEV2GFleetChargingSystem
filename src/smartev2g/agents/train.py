@@ -39,7 +39,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNorm
 
 from smartev2g.agents.callbacks import EpisodeMetricsCallback, ValidationCallback
 from smartev2g.envs.make_env import make_env, resolve_path
-from smartev2g.envs.wrappers import RewardTermsInfo
+from smartev2g.envs.wrappers import EpisodeInfo
 from smartev2g.eval.evaluate import SB3Policy, evaluate_policy, scenario_seeds
 from smartev2g.utils.logging import init_wandb
 from smartev2g.utils.run_info import RESULTS_DIR, RunInfo, make_run_dir, make_run_id
@@ -68,17 +68,15 @@ def env_kwargs(cfg: dict[str, Any]) -> dict[str, Any]:
 def _env_factory(kwargs: dict[str, Any]):
     def _init():
         # Monitor records each episode's raw return and length. Ref: [R13]
-        return Monitor(RewardTermsInfo(make_env(**kwargs)))
+        return Monitor(EpisodeInfo(make_env(**kwargs)))
 
     return _init
 
 
-def make_training_env(
-    cfg: dict[str, Any], seed: int, n_envs: int, restart: int = 0
-) -> VecNormalize:
-    """`n_envs` simulator copies (one process each) + VecNormalize.
+def first_day_seed(seed: int, n_envs: int, restart: int = 0) -> int:
+    """Seed of the first simulated day of env copy 0 (copy i uses this + i).
 
-    Copy i starts on day seed*1000 + restart*n_envs + i; later days follow from it.
+    = seed*1000 + restart*n_envs, so different training seeds never share days.
     `restart` (number of resumes so far) gives a resumed run fresh days instead
     of replaying the ones it started with.
     """
@@ -87,6 +85,17 @@ def make_training_env(
         raise ValueError("training seeds would overlap another seed's days")
     if first_seed + n_envs > MAX_TRAIN_SEED:
         raise ValueError(f"seed {seed} too large: training seeds must stay < {MAX_TRAIN_SEED}")
+    return first_seed
+
+
+def make_training_env(
+    cfg: dict[str, Any], seed: int, n_envs: int, restart: int = 0
+) -> VecNormalize:
+    """`n_envs` simulator copies (one process each) + VecNormalize.
+
+    Copy i starts on day first_day_seed(...) + i; later days follow from it.
+    """
+    first_seed = first_day_seed(seed, n_envs, restart)
     factories = [_env_factory(env_kwargs(cfg)) for _ in range(n_envs)]
     venv = SubprocVecEnv(factories) if n_envs > 1 else DummyVecEnv(factories)
     venv.seed(first_seed)
@@ -226,6 +235,10 @@ def train(
         print(f"Resuming from {ckpt[0].name} ({model.num_timesteps} steps)")
     else:
         model = PPO("MlpPolicy", venv, seed=seed, device=t["device"], verbose=0, **cfg["ppo"])
+    # PPO(seed=...) also re-seeds the envs with seed, seed+1, ... (SB3 set_random_seed),
+    # which would make training seeds 0 and 1 replay almost the same days. Restore our
+    # day seeds; they take effect at the first reset, inside learn().
+    venv.seed(first_day_seed(seed, t["n_envs"], restart))
 
     # wandb starts AFTER the simulator processes, so they do not inherit its threads.
     tags = [cfg["agent"], f"seed{seed}", cfg["env"]["reward_function"]]

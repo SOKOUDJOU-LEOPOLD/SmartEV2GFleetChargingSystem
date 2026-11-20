@@ -5,18 +5,23 @@ from __future__ import annotations
 import gymnasium as gym
 
 
-class RewardTermsInfo(gym.Wrapper):
-    """At the end of each episode, copy the day's reward terms into `info`.
+class EpisodeInfo(gym.Wrapper):
+    """At the end of each episode, add to `info`:
 
-    Our reward stores its separate terms (profit, overload penalty, departure
-    penalty) on the env; this makes them visible to the training callbacks,
-    which only see `info` (docs/plan/METRICS_AND_LOGGING.md: "each reward term
-    separately"). Does nothing for rewards that do not record terms.
+    - `day_seed`: which simulated day (seed) was played, so every training episode
+      can be traced and train/validation/test days can be checked to never mix. [R14]
+    - `reward_terms_episode`: the day's separate reward terms (profit, overload
+      penalty, departure penalty), for rewards that record them
+      (docs/plan/METRICS_AND_LOGGING.md: "each reward term separately").
+    The training callbacks only see `info`, so this is how they get these values.
     """
 
     def step(self, action):
         obs, reward, terminated, truncated, info = self.env.step(action)
-        terms = getattr(self.env.unwrapped, "reward_terms_episode", None)
-        if (terminated or truncated) and terms is not None:
-            info = {**info, "reward_terms_episode": dict(terms)}
+        if terminated or truncated:
+            base = self.env.unwrapped
+            info = {**info, "day_seed": int(base.seed)}
+            terms = getattr(base, "reward_terms_episode", None)
+            if terms is not None:
+                info["reward_terms_episode"] = dict(terms)
         return obs, reward, terminated, truncated, info
