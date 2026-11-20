@@ -1,0 +1,51 @@
+# Phase 1 PIPELINE CHECK: can our PPO pipeline learn a task whose answer we know?
+# Reward = kWh delivered to the cars (src/smartev2g/rewards/sanity.py). The best
+# policy is "charge as fast as possible" (AFAP), so PPO's score should climb
+# towards AFAP's. Needed because EV2Gym's default reward (p1_sanity_ppo.yaml)
+# turned out to be a poor learning target (see EXPERIMENT_LOG, Phase 1).
+#
+# Pass criteria (decided BEFORE running):
+#   1. validation return rises during training
+#   2. test return clearly above the random policy
+#   3. test return >= 90 % of AFAP's test return
+
+name: p1-pipeline-check
+agent: PPO-energy-check
+
+env:
+  config: configs/env/v2g_profitmax_20port.yaml
+  state_function: V2G_profit_max
+  reward_function: energy_delivered # kWh delivered to cars per step (see make_env.py)
+
+scenarios: configs/eval/scenarios.yaml
+
+training:
+  total_timesteps: 1000000 # ~8,900 simulated days of 112 steps
+  n_envs: 16 # simulated days played in parallel (one CPU process each)
+  device: cpu # chosen by the CPU vs GPU timing test (scripts/timing_test.py)
+  torch_threads: 1 # CPU threads for the PPO update: 1 was fastest in the timing test (ADR-0003)
+  # VecNormalize: rescale observations (and rewards) to ~mean 0, std 1 so that
+  # prices (~0.1 EUR) and step numbers (0..112) are on similar scales. Ref: [R13]
+  normalize_obs: true
+  normalize_reward: true
+  eval_every_steps: 50000 # validation run + best-model checkpoint
+  checkpoint_every_steps: 100000 # resumable checkpoints (CODING_RULES §7)
+
+# PPO settings (Stable-Baselines3). Mostly SB3 defaults. Ref: [R8], [R13]
+ppo:
+  learning_rate: 0.0003
+  n_steps: 448 # steps per env before each update = 4 days; buffer = 448 x 16 = 7,168
+  batch_size: 512
+  n_epochs: 10
+  gamma: 0.99 # how much future rewards count (0.99 ~ looks ~100 steps ahead)
+  gae_lambda: 0.95 # GAE smoothing of advantages. Ref: [R12]
+  clip_range: 0.2 # PPO clipping: limits how much the policy changes per update. Ref: [R8]
+  ent_coef: 0.0 # bonus for exploring (randomness); 0 = SB3 default
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  policy_kwargs:
+    net_arch: [64, 64] # two hidden layers of 64 neurons (SB3 default size)
+
+logging:
+  wandb: online # online | offline | disabled (WANDB_MODE env var overrides)
+  project: smartev2g # WANDB_PROJECT env var overrides

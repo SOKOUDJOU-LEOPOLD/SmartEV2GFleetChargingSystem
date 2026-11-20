@@ -24,6 +24,8 @@ from ev2gym.models.ev2gym_env import EV2Gym
 from ev2gym.rl_agent import reward as ev2gym_reward
 from ev2gym.rl_agent import state as ev2gym_state
 
+from smartev2g.rewards import sanity as sanity_rewards
+
 # Repo root = three folders above this file (src/smartev2g/envs/make_env.py).
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -39,6 +41,8 @@ REWARD_FUNCTIONS: dict[str, Callable] = {
     # EV2Gym's default V2G reward: profit minus a penalty for unhappy drivers.
     # Used only for the Phase 1 sanity check; Phase 2 adds our own reward.
     "profit_maximization": ev2gym_reward.profit_maximization,
+    # Phase 1 pipeline check only: reward = kWh delivered to cars; best policy = AFAP.
+    "energy_delivered": sanity_rewards.energy_delivered,
 }
 
 # Number of future prices the V2G_profit_max observation contains (fixed in EV2Gym).
