@@ -1,7 +1,7 @@
 # ADR-0004: One shared per-charger policy with per-charger rewards
 
 - **Date:** 2026-11-20
-- **Status:** Proposed (to be agreed by Leopold and Yeshas before implementation)
+- **Status:** Accepted (2026-11-20)
 - **Author(s):** Leopold Sokoudjou Gatsing
 
 ## Context
