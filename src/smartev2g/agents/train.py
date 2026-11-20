@@ -39,6 +39,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNorm
 
 from smartev2g.agents.callbacks import EpisodeMetricsCallback, ValidationCallback
 from smartev2g.envs.make_env import make_env, resolve_path
+from smartev2g.envs.wrappers import RewardTermsInfo
 from smartev2g.eval.evaluate import SB3Policy, evaluate_policy, scenario_seeds
 from smartev2g.utils.logging import init_wandb
 from smartev2g.utils.run_info import RESULTS_DIR, RunInfo, make_run_dir, make_run_id
@@ -60,13 +61,14 @@ def env_kwargs(cfg: dict[str, Any]) -> dict[str, Any]:
         "config_path": e["config"],
         "state_function": e["state_function"],
         "reward_function": e["reward_function"],
+        "reward_kwargs": e.get("reward_kwargs"),
     }
 
 
 def _env_factory(kwargs: dict[str, Any]):
     def _init():
         # Monitor records each episode's raw return and length. Ref: [R13]
-        return Monitor(make_env(**kwargs))
+        return Monitor(RewardTermsInfo(make_env(**kwargs)))
 
     return _init
 
@@ -229,6 +231,8 @@ def train(
     tags = [cfg["agent"], f"seed{seed}", cfg["env"]["reward_function"]]
     if cfg.get("variant"):
         tags.append(cfg["variant"])
+    for key, value in (cfg["env"].get("reward_kwargs") or {}).items():
+        tags.append(f"{key.replace('lambda_', 'lam_')}{value:g}")  # e.g. "lam_dep50"
     wandb_run = init_wandb(cfg, run_id, run_dir, group=cfg["name"], tags=tags)
     model.set_logger(make_logger(run_dir, restart, verbose))
 

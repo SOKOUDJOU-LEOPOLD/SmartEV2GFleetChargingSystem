@@ -65,6 +65,8 @@
 
 **Train/test grid (cross-evaluation).** Test each trained agent in every environment (no early departures, few, many) to separate what an agent learned from where it was tested. [R7]
 
+**Parameter sharing (one policy for many identical units).** Instead of one big network deciding for all 20 chargers at once, one small network decides for one charger at a time and is reused for every charger. Each charger gets its own share of the reward, so a penalty lands on the charger that caused it (better credit assignment), and every simulated step gives 20 learning examples. [R18]
+
 ## Memory (stretch goal)
 
 **Recurrent policy (LSTM).** A neural network with memory: it carries a hidden summary of past observations. Useful when the current observation is not enough, e.g. to infer that "today many cars are leaving early". In SB3-contrib: `RecurrentPPO` with `MlpLstmPolicy`. [R9], [R17]
@@ -104,5 +106,6 @@
 | R15 | R. Agarwal et al., "Deep RL at the Edge of the Statistical Precipice," NeurIPS 2021 (rliable). |
 | R16 | J. Tobin et al., "Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World," IROS 2017. |
 | R17 | SB3-Contrib RecurrentPPO docs: https://sb3-contrib.readthedocs.io/en/master/modules/ppo_recurrent.html |
+| R18 | C. Yu et al., "The Surprising Effectiveness of PPO in Cooperative Multi-Agent Games," NeurIPS 2022 (Datasets and Benchmarks). arXiv:2103.01955 |
 
 R1–R10 match the numbering of the [literature review](../proposal/Literature_Review.md).

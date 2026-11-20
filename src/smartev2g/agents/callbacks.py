@@ -47,6 +47,9 @@ class EpisodeMetricsCallback(BaseCallback):
                 "length": info["episode"]["l"],
             }
             row.update({k: float(info[k]) for k in EV2GYM_STATS if k in info})
+            # Our reward's separate terms for this day (econ, overload, departure penalty).
+            for k, v in info.get("reward_terms_episode", {}).items():
+                row[f"reward_{k}"] = float(v)
             self.csv.log(row)
             if self.wandb_run is not None:
                 metrics = {f"train_ep/{k}": v for k, v in row.items() if k != "env_idx"}

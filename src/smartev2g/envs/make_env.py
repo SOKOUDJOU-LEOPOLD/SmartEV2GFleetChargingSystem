@@ -25,6 +25,7 @@ from ev2gym.rl_agent import reward as ev2gym_reward
 from ev2gym.rl_agent import state as ev2gym_state
 
 from smartev2g.rewards import sanity as sanity_rewards
+from smartev2g.rewards import shortfall_reward
 
 # Repo root = three folders above this file (src/smartev2g/envs/make_env.py).
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -44,6 +45,25 @@ REWARD_FUNCTIONS: dict[str, Callable] = {
     # Phase 1 pipeline check only: reward = kWh delivered to cars; best policy = AFAP.
     "energy_delivered": sanity_rewards.energy_delivered,
 }
+# Rewards that need settings (e.g. λ weights): name -> function that builds the reward
+# from those settings (`reward_kwargs` in make_env / the `env` section of configs).
+REWARD_FACTORIES: dict[str, Callable] = {
+    # OUR reward (Phase 2+): profit − λ_over·overload² − λ_dep·shortfall². See its module.
+    "squared_shortfall": shortfall_reward.make_squared_shortfall,
+}
+
+
+def get_reward_function(name: str, reward_kwargs: dict | None = None) -> Callable:
+    """Look up a reward by name; rewards with settings are built from `reward_kwargs`."""
+    if name in REWARD_FACTORIES:
+        return REWARD_FACTORIES[name](**(reward_kwargs or {}))
+    if reward_kwargs:
+        raise ValueError(f"Reward {name!r} takes no settings, got {reward_kwargs}")
+    if name not in REWARD_FUNCTIONS:
+        known = sorted(REWARD_FUNCTIONS) + sorted(REWARD_FACTORIES)
+        raise KeyError(f"Unknown reward {name!r}; known: {known}")
+    return REWARD_FUNCTIONS[name]
+
 
 # Number of future prices the V2G_profit_max observation contains (fixed in EV2Gym).
 PRICE_HORIZON = 20
@@ -89,6 +109,7 @@ def make_env(
     seed: int | None = None,
     state_function: str = "V2G_profit_max",
     reward_function: str = "profit_maximization",
+    reward_kwargs: dict | None = None,
     verbose: bool = False,
 ) -> EV2Gym:
     """Create an EV2Gym environment.
@@ -98,7 +119,9 @@ def make_env(
         seed: random seed. The same seed gives the same cars, prices and day,
             so experiments can be repeated exactly. Ref: [R14]
         state_function: name in STATE_FUNCTIONS (what the agent observes).
-        reward_function: name in REWARD_FUNCTIONS (how the agent is scored).
+        reward_function: name in REWARD_FUNCTIONS or REWARD_FACTORIES (how the agent
+            is scored).
+        reward_kwargs: settings of the reward, e.g. {"lambda_dep": 50, "lambda_over": 0.1}.
         verbose: print EV2Gym's step-by-step messages.
 
     Note:
@@ -118,7 +141,7 @@ def make_env(
             config_file=tmp,
             seed=seed,
             state_function=STATE_FUNCTIONS[state_function],
-            reward_function=REWARD_FUNCTIONS[reward_function],
+            reward_function=get_reward_function(reward_function, reward_kwargs),
             save_replay=False,
             save_plots=False,
             lightweight_plots=True,
