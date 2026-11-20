@@ -46,6 +46,9 @@ ppo:
   max_grad_norm: 0.5
   policy_kwargs:
     net_arch: [64, 64] # two hidden layers of 64 neurons (SB3 default size)
+    # Starting randomness of actions: std = exp(log_std_init); 0 -> std 1 (SB3 default),
+    # -1 -> std 0.37 (less random at the start, so less accidental draining).
+    log_std_init: 0.0
 
 logging:
   wandb: online # online | offline | disabled (WANDB_MODE env var overrides)
