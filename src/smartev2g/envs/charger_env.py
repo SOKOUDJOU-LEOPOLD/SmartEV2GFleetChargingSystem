@@ -20,32 +20,42 @@ import time
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
-from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, VecEnv, VecNormalize
 
 from smartev2g.envs.charger_obs import N_FEATURES, charger_observations
 
 
 class SiteChargerEnv(gym.Wrapper):
-    """One site; observation (n_chargers, 26), reward (n_chargers,), action (n_chargers,)."""
+    """One site with ONE REWARD PER CHARGER (reward shape (n_chargers,)).
 
-    def __init__(self, env: gym.Env) -> None:
+    - per_charger_obs=True (ADR-0004, shared policy): observation (n_chargers, 26).
+    - per_charger_obs=False (ADR-0005, central agent with per-charger credit): the
+      normal site observation (EV2Gym's 62 numbers); one network sees everything.
+    """
+
+    def __init__(self, env: gym.Env, per_charger_obs: bool = True) -> None:
         super().__init__(env)
+        self.per_charger_obs = per_charger_obs
         base = env.unwrapped
         if any(cs.n_ports != 1 for cs in base.charging_stations):
             raise ValueError("The shared per-charger policy assumes 1 port per charger")
         self.n_chargers = len(base.charging_stations)
-        self.observation_space = spaces.Box(
-            -np.inf, np.inf, shape=(self.n_chargers, N_FEATURES), dtype=np.float64
-        )
+        if per_charger_obs:
+            self.observation_space = spaces.Box(
+                -np.inf, np.inf, shape=(self.n_chargers, N_FEATURES), dtype=np.float64
+            )
         self._return, self._length, self._t0 = 0.0, 0, time.time()
+
+    def _observation(self, site_obs):
+        return charger_observations(self.env.unwrapped) if self.per_charger_obs else site_obs
 
     def reset(self, *, seed=None, options=None):
-        _, info = self.env.reset(seed=seed, options=options)
+        obs, info = self.env.reset(seed=seed, options=options)
         self._return, self._length, self._t0 = 0.0, 0, time.time()
-        return charger_observations(self.env.unwrapped), info
+        return self._observation(obs), info
 
     def step(self, action):
-        _, reward, terminated, truncated, info = self.env.step(np.asarray(action).reshape(-1))
+        obs, reward, terminated, truncated, info = self.env.step(np.asarray(action).reshape(-1))
         base = self.env.unwrapped
         rewards = getattr(base, "charger_rewards", None)
         if rewards is None:
@@ -62,8 +72,13 @@ class SiteChargerEnv(gym.Wrapper):
                     "t": round(time.time() - self._t0, 6),
                 },
             }
-        obs = charger_observations(base)
-        return obs, np.array(rewards, dtype=np.float64), terminated, truncated, info
+        return (
+            self._observation(obs),
+            np.array(rewards, dtype=np.float64),
+            terminated,
+            truncated,
+            info,
+        )
 
 
 class SiteDummyVecEnv(DummyVecEnv):
@@ -72,7 +87,7 @@ class SiteDummyVecEnv(DummyVecEnv):
 
     def __init__(self, env_fns) -> None:
         super().__init__(env_fns)
-        n_chargers = self.observation_space.shape[0]
+        n_chargers = self.envs[0].get_wrapper_attr("n_chargers")
         self.buf_rews = np.zeros((self.num_envs, n_chargers), dtype=np.float32)
 
 
@@ -148,3 +163,19 @@ class ChargerVecEnv(VecEnv):
         sites, n = self._sites(indices)
         wrapped = self.venv.env_is_wrapped(wrapper_class, sites)
         return [all(wrapped)] * n
+
+
+class VecNormalizeObsOnly(VecNormalize):
+    """VecNormalize that rescales observations but never touches rewards.
+
+    SB3's VecNormalize updates its reward statistics during training even when
+    `norm_reward=False`; that breaks with one reward per charger (shape (n_envs, 20)).
+    Used for the central agent with per-charger credit (ADR-0005), whose rewards are
+    rescaled by a fixed `reward_scale` instead.
+    """
+
+    def __init__(self, venv, **kwargs) -> None:
+        super().__init__(venv, norm_reward=False, **kwargs)
+
+    def _update_reward(self, reward: np.ndarray) -> None:
+        pass

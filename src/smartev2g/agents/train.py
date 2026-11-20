@@ -38,7 +38,13 @@ from stable_baselines3.common.utils import set_random_seed
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
 
 from smartev2g.agents.callbacks import EpisodeMetricsCallback, ValidationCallback
-from smartev2g.envs.charger_env import ChargerVecEnv, SiteChargerEnv, SiteDummyVecEnv
+from smartev2g.agents.credit_ppo import CreditPPO
+from smartev2g.envs.charger_env import (
+    ChargerVecEnv,
+    SiteChargerEnv,
+    SiteDummyVecEnv,
+    VecNormalizeObsOnly,
+)
 from smartev2g.envs.make_env import make_env, resolve_path
 from smartev2g.envs.wrappers import EpisodeInfo
 from smartev2g.eval.evaluate import evaluate_policy, make_sb3_policy, scenario_seeds
@@ -66,10 +72,28 @@ def env_kwargs(cfg: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# Agent designs (see eval/evaluate.py POLICY_CLASSES):
+#   site           one network, whole site, one site reward (Phase 1)
+#   shared_charger one small network shared by all chargers (ADR-0004)
+#   central_credit one network, whole site, per-charger credit (ADR-0005)
+VECTOR_REWARD_DESIGNS = {"shared_charger", "central_credit"}  # one reward per charger
+
+
 def agent_design(cfg: dict[str, Any]) -> str:
-    """'site' = one network for the whole site (default, Phase 1);
-    'shared_charger' = one small network shared by all chargers (ADR-0004)."""
-    return cfg.get("agent_design", "site")
+    design = cfg.get("agent_design", "site")
+    if design not in {"site", "shared_charger", "central_credit"}:
+        raise ValueError(f"Unknown agent_design {design!r}")
+    return design
+
+
+def algorithm(design: str):
+    """SB3 algorithm class: PPO, or our CreditPPO for per-charger credit (ADR-0005)."""
+    return CreditPPO if design == "central_credit" else PPO
+
+
+def _in_process_vec_env(design: str):
+    """In-process vec env; vector-reward designs need room for one reward per charger."""
+    return SiteDummyVecEnv if design in VECTOR_REWARD_DESIGNS else DummyVecEnv
 
 
 def n_chargers(cfg: dict[str, Any]) -> int:
@@ -87,8 +111,9 @@ def step_scale(cfg: dict[str, Any]) -> int:
 def _env_factory(kwargs: dict[str, Any], design: str = "site"):
     def _init():
         env = EpisodeInfo(make_env(**kwargs))
-        if design == "shared_charger":
-            return SiteChargerEnv(env)  # records the site's episode return itself
+        if design in VECTOR_REWARD_DESIGNS:
+            # One reward per charger; records the site's episode return itself.
+            return SiteChargerEnv(env, per_charger_obs=design == "shared_charger")
         # Monitor records each episode's raw return and length. Ref: [R13]
         return Monitor(env)
 
@@ -125,11 +150,15 @@ def make_training_env(
     first_seed = first_day_seed(seed, n_envs, restart)
     design = agent_design(cfg)
     factories = [_env_factory(env_kwargs(cfg), design) for _ in range(n_envs)]
-    in_process = SiteDummyVecEnv if design == "shared_charger" else DummyVecEnv
+    in_process = _in_process_vec_env(design)
     venv = SubprocVecEnv(factories) if n_envs > 1 else in_process(factories)
     venv.seed(first_seed)
     venv = _wrap_sites(venv, design)
     t = cfg["training"]
+    if design == "central_credit":
+        if t["normalize_reward"]:
+            raise ValueError("central_credit: set normalize_reward: false and use reward_scale")
+        return VecNormalizeObsOnly(venv, norm_obs=t["normalize_obs"], gamma=cfg["ppo"]["gamma"])
     return VecNormalize(
         venv,
         norm_obs=t["normalize_obs"],
@@ -262,10 +291,13 @@ def train(
 
     if ckpt is not None:
         venv = VecNormalize.load(str(ckpt[1]), venv.venv)  # restore rescaling statistics
-        model = PPO.load(ckpt[0], env=venv, device=t["device"])
+        model = algorithm(design).load(ckpt[0], env=venv, device=t["device"])
         print(f"Resuming from {ckpt[0].name} ({model.num_timesteps} steps)")
     else:
-        model = PPO("MlpPolicy", venv, seed=seed, device=t["device"], verbose=0, **cfg["ppo"])
+        extra = {"reward_scale": t.get("reward_scale", 1.0)} if design == "central_credit" else {}
+        model = algorithm(design)(
+            "MlpPolicy", venv, seed=seed, device=t["device"], verbose=0, **cfg["ppo"], **extra
+        )
     # PPO(seed=...) also re-seeds the envs with seed, seed+1, ... (SB3 set_random_seed),
     # which would make training seeds 0 and 1 replay almost the same days. Restore our
     # day seeds; they take effect at the first reset, inside learn().
@@ -346,12 +378,12 @@ def train(
 def test_best_model(cfg: dict[str, Any], run_dir: Path) -> tuple[dict[str, Any], pd.DataFrame]:
     """Evaluate the best validation checkpoint (or the final model) on the fixed test days."""
     name = "best" if (run_dir / "best_model.zip").exists() else "final"
-    model = PPO.load(run_dir / f"{name}_model.zip", device="cpu")
+    design = agent_design(cfg)
+    model = algorithm(design).load(run_dir / f"{name}_model.zip", device="cpu")
     vec_norm = None
     norm_path = run_dir / f"{name}_vecnormalize.pkl"
-    design = agent_design(cfg)
     if norm_path.exists():
-        in_process = SiteDummyVecEnv if design == "shared_charger" else DummyVecEnv
+        in_process = _in_process_vec_env(design)
         dummy = _wrap_sites(in_process([_env_factory(env_kwargs(cfg), design)]), design)
         vec_norm = VecNormalize.load(str(norm_path), dummy)
         vec_norm.training = False  # freeze the rescaling statistics during testing

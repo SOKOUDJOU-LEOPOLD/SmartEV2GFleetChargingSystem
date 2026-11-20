@@ -69,7 +69,13 @@ class SharedChargerPolicy(SB3Policy):
 
 # Agent designs: "site" = one network for the whole site (Phase 1),
 # "shared_charger" = one small network shared by all chargers (ADR-0004).
-POLICY_CLASSES = {"site": SB3Policy, "shared_charger": SharedChargerPolicy}
+# "central_credit" = one network for the whole site trained with per-charger credit
+# (ADR-0005); it acts exactly like "site" (site observation in, 20 actions out).
+POLICY_CLASSES = {
+    "site": SB3Policy,
+    "shared_charger": SharedChargerPolicy,
+    "central_credit": SB3Policy,
+}
 
 
 def make_sb3_policy(design: str, model, vec_normalize=None, name: str = "PPO") -> SB3Policy:
