@@ -2,13 +2,14 @@
 
 **Goal:** build and *fully test* the core contribution: hidden early departures (POMDP) + the shared reward.
 
-**Status:** 🟡 In progress (reward done on `leopold/feat/p2-shortfall-reward`; shared per-charger policy next, ADR-0004) · **Milestone tag:** `v0.2-wrapper`
+**Status:** 🟡 In progress (reward done on `leopold/feat/p2-shortfall-reward`; shared per-charger policy tried (ADR-0004); central agent with per-charger credit next (ADR-0005)) · **Milestone tag:** `v0.2-wrapper`
 
 ## Branches
 | Branch | Content |
 |---|---|
 | `leopold/feat/p2-shortfall-reward` | Reward function (+ first PPO runs, ADR-0004) |
-| `leopold/feat/p2-shared-charger-policy` | One policy shared by all chargers, per-charger rewards (ADR-0004) |
+| `leopold/feat/p2-shared-charger-policy` | One policy shared by all chargers, per-charger rewards (ADR-0004), seed fix |
+| `leopold/feat/p2-central-credit-ppo` | Central agent with per-charger credit (ADR-0005) |
 | `<name>/feat/p2-departure-wrapper` | UnexpectedDepartureWrapper + synthetic departure model |
 | `<name>/feat/p2-oracle-wrapper` | Oracle observation (true departure visible) |
 
@@ -21,10 +22,16 @@
 - [x] First PPO runs with this reward (no early departures): does not beat AFAP with one site-wide agent → ADR-0004
 
 ### Shared per-charger policy (ADR-0004, `leopold/feat/p2-shared-charger-policy`)
-- [ ] Per-charger observation (`envs/charger_obs.py`)
-- [ ] Per-charger reward split; Σ per-charger rewards = site reward (test)
-- [ ] One site → 20 SB3 environments (`envs/charger_vec_env.py`)
-- [ ] Evaluation adapter; PPO run vs AFAP / Random
+- [x] Per-charger observation (`envs/charger_obs.py`)
+- [x] Per-charger reward split; Σ per-charger rewards = site reward (test)
+- [x] One site → 20 SB3 environments (`envs/charger_env.py`)
+- [x] Evaluation adapter; PPO run vs AFAP / Random → drivers well served, but uncoordinated chargers overload the transformer → ADR-0005
+
+### Central agent with per-charger credit (ADR-0005, `leopold/feat/p2-central-credit-ppo`)
+- [ ] `CreditPPO`: 20-output critic, per-charger GAE and PPO loss (`agents/credit_ppo.py`)
+- [ ] Site observation + vector rewards env; `agent_design: central_credit`
+- [ ] Tests: per-charger GAE sums to site GAE; log-prob decomposition; end-to-end run
+- [ ] λ_over = 0.1, fixed reward scale; PPO run vs AFAP / Random
 
 ### Departure model (`src/smartev2g/envs/departure_models.py`)
 - [ ] Interface: `sample(ev, t_now, rng) -> T_actual or None`

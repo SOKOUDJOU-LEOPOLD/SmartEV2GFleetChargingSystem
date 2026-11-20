@@ -1,7 +1,7 @@
 # ADR-0004: One shared per-charger policy with per-charger rewards
 
 - **Date:** 2026-11-20
-- **Status:** Accepted (2026-11-20)
+- **Status:** Accepted (2026-11-20); policy design superseded by ADR-0005 (2026-11-20) after the first run showed transformer overload from uncoordinated chargers. The per-charger reward split is kept.
 - **Author(s):** Leopold Sokoudjou Gatsing
 
 ## Context
