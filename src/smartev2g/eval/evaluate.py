@@ -70,7 +70,11 @@ def run_episode(policy: Policy, env, seed: int):
         total += reward
         done = terminated or truncated
     evs = ev_rows(env, seed)
-    return episode_row(seed, total, info, evs), evs
+    row = episode_row(seed, total, info, evs)
+    # Our reward's separate terms for this day (only rewards that record them).
+    for k, v in (getattr(env, "reward_terms_episode", None) or {}).items():
+        row[f"reward_{k}"] = float(v)
+    return row, evs
 
 
 def evaluate_policy(

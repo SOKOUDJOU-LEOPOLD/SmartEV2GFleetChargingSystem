@@ -46,7 +46,11 @@ def log_to_wandb(cfg, run_dir: Path, policy_name: str, episodes: pd.DataFrame, p
         run_id=f"{run_dir.name}_{policy_name}",
         run_dir=run_dir,
         group=cfg["name"],
-        tags=[policy_name, "baseline", cfg["env"]["reward_function"]],
+        tags=[policy_name, "baseline", cfg["env"]["reward_function"]]
+        + [
+            f"{k.replace('lambda_', 'lam_')}{v:g}"
+            for k, v in (cfg["env"].get("reward_kwargs") or {}).items()
+        ],
     )
     means = episodes.drop(columns=["policy", "seed"]).mean(numeric_only=True)
     run.summary.update({f"{prefix}/{k}": float(v) for k, v in means.items()})
