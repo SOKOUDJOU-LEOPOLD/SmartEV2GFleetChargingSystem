@@ -1,0 +1,57 @@
+# Phase 2: PPO with OUR reward and the SHARED PER-CHARGER POLICY (ADR-0004),
+# no early departures yet (p_early = 0, "PPO-Trusting" setting).
+# One small network decides for every charger; each charger gets its own share of
+# the reward (shares add up to the site reward). Compare with p2_shortfall_ppo.yaml
+# (one network for the whole site), which did not beat AFAP.
+#
+# total_timesteps / eval / checkpoint counts are SIMULATOR steps (as in every config):
+# SB3 internally sees 20x more steps (one per charger).
+# λ values are PROVISIONAL (calibrated in Phase 4).
+
+name: p2-shared-charger-ppo
+agent: PPO-Trusting
+agent_design: shared_charger # site | shared_charger (ADR-0004)
+
+env:
+  config: configs/env/v2g_profitmax_20port.yaml
+  state_function: V2G_profit_max
+  reward_function: squared_shortfall # profit − λ_over·overload² − λ_dep·shortfall² (rewards/shortfall_reward.py)
+  reward_kwargs:
+    lambda_dep: 50.0 # weight of Σ (target SoC − SoC at departure)², SoC as fraction 0..1
+    lambda_over: 1.0 # weight of Σ (kW above transformer rating)²
+
+scenarios: configs/eval/scenarios.yaml
+
+training:
+  total_timesteps: 1000000 # ~8,900 simulated days of 112 steps
+  n_envs: 16 # simulated days played in parallel (one CPU process each)
+  device: cpu # chosen by the CPU vs GPU timing test (scripts/timing_test.py)
+  torch_threads: 1 # CPU threads for the PPO update: 1 was fastest in the timing test (ADR-0003)
+  # VecNormalize: rescale observations (and rewards) to ~mean 0, std 1 so that
+  # prices (~0.1 EUR) and step numbers (0..112) are on similar scales. Ref: [R13]
+  normalize_obs: true
+  normalize_reward: true
+  eval_every_steps: 50000 # validation run + best-model checkpoint
+  checkpoint_every_steps: 100000 # resumable checkpoints (CODING_RULES §7)
+
+# PPO settings (Stable-Baselines3). Mostly SB3 defaults. Ref: [R8], [R13]
+ppo:
+  learning_rate: 0.0003
+  n_steps: 112 # steps per charger-env before each update = 1 day; buffer = 112 x 16 sites x 20 chargers = 35,840
+  batch_size: 1024
+  n_epochs: 10
+  gamma: 0.99 # how much future rewards count (0.99 ~ looks ~100 steps ahead)
+  gae_lambda: 0.95 # GAE smoothing of advantages. Ref: [R12]
+  clip_range: 0.2 # PPO clipping: limits how much the policy changes per update. Ref: [R8]
+  ent_coef: 0.0 # bonus for exploring (randomness); 0 = SB3 default
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  policy_kwargs:
+    net_arch: [64, 64] # two hidden layers of 64 neurons (SB3 default size)
+    # Starting randomness of actions: std = exp(log_std_init); 0 -> std 1 (SB3 default),
+    # -1 -> std 0.37 (less random at the start, so less accidental draining).
+    log_std_init: 0.0
+
+logging:
+  wandb: online # online | offline | disabled (WANDB_MODE env var overrides)
+  project: smartev2g # WANDB_PROJECT env var overrides

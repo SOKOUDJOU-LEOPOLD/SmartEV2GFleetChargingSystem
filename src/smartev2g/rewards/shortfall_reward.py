@@ -17,11 +17,22 @@ The λ weights set the trade-off between profit and drivers/grid; we test severa
 Each term is also stored on the env (`env.reward_terms` for the step,
 `env.reward_terms_episode` summed over the day) for logging
 (docs/plan/METRICS_AND_LOGGING.md: "each reward term separately").
+
+Per-charger split (ADR-0004): the same reward is also divided between the chargers
+(`env.charger_rewards`, one number per charger) so that a shared per-charger policy
+gets credit/blame for ITS own decisions. The parts always add up to the site reward:
+- profit: what each charger itself earned/paid this step;
+- departure penalty: paid by the charger whose car left;
+- overload penalty: shared in proportion to how much each charger pushed in the
+  overload direction (charging when above +limit, selling when below −limit);
+  equally if no charger did (e.g. other loads caused it). Ref: [R18]
 """
 
 from __future__ import annotations
 
 from functools import partial
+
+import numpy as np
 
 REWARD_TERMS = ["econ", "overload_penalty", "departure_penalty"]
 
@@ -42,6 +53,47 @@ def transformer_overload_kw(tr, step: int) -> float:
     """
     power = tr.current_power
     return float(max(0.0, power - tr.max_power[step], tr.min_power[step] - power))
+
+
+def charger_offsets(env) -> dict[int, int]:
+    """charging-station id -> index of its first port in the action/observation order."""
+    offsets, i = {}, 0
+    for cs in env.charging_stations:
+        offsets[cs.id] = i
+        i += cs.n_ports
+    return offsets
+
+
+def charger_terms(env, step: int, lambda_dep: float, lambda_over: float) -> dict[str, np.ndarray]:
+    """Split this step's reward terms between the chargers (1 port per charger).
+
+    Returns arrays of length n_chargers whose sums equal the site-level terms.
+    """
+    n = len(env.charging_stations)
+    profits = np.array([cs.total_profits for cs in env.charging_stations], dtype=float)
+    if step == 0 or getattr(env, "_cs_profits_prev", None) is None:
+        env._cs_profits_prev = np.zeros(n)  # EV2Gym resets total_profits at reset
+    econ = profits - env._cs_profits_prev
+    env._cs_profits_prev = profits
+
+    departure = np.zeros(n)
+    offsets = charger_offsets(env)
+    for ev in env.departing_evs:
+        departure[offsets[ev.location] + ev.id] += lambda_dep * soc_shortfall(ev) ** 2
+
+    overload = np.zeros(n)
+    power = np.array([cs.current_power_output for cs in env.charging_stations], dtype=float)
+    for tr in env.transformers:
+        over = transformer_overload_kw(tr, step)
+        if over <= 0:
+            continue
+        mine = np.array([cs.connected_transformer == tr.id for cs in env.charging_stations])
+        direction = 1.0 if tr.current_power > tr.max_power[step] else -1.0
+        push = np.where(mine, np.maximum(0.0, direction * power), 0.0)
+        weights = push / push.sum() if push.sum() > 0 else mine / mine.sum()
+        overload += lambda_over * over**2 * weights
+
+    return {"econ": econ, "overload_penalty": overload, "departure_penalty": departure}
 
 
 def squared_shortfall(
@@ -68,6 +120,14 @@ def squared_shortfall(
     for k, v in terms.items():
         env.reward_terms_episode[k] += v
     env.reward_terms = terms
+
+    # Per-charger split for the shared per-charger policy (ADR-0004); only for real
+    # EV2Gym envs with one port per charger.
+    stations = getattr(env, "charging_stations", None)
+    if stations and all(cs.n_ports == 1 for cs in stations):
+        parts = charger_terms(env, step, lambda_dep, lambda_over)
+        env.charger_reward_terms = parts
+        env.charger_rewards = parts["econ"] - parts["overload_penalty"] - parts["departure_penalty"]
 
     return econ - terms["overload_penalty"] - terms["departure_penalty"]
 

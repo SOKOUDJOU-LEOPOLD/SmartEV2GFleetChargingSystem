@@ -1,7 +1,7 @@
 # ADR-0004: One shared per-charger policy with per-charger rewards
 
 - **Date:** 2026-11-20
-- **Status:** Accepted (2026-11-20)
+- **Status:** Accepted (2026-11-20); policy design superseded by ADR-0005 (2026-11-20) after the first run showed transformer overload from uncoordinated chargers. The per-charger reward split is kept.
 - **Author(s):** Leopold Sokoudjou Gatsing
 
 ## Context
@@ -31,16 +31,16 @@ Control the site with **one small policy shared by all chargers** ("parameter sh
   `r_i = profit_i − λ_dep · shortfall_i² · [car at i left this step] − overload share_i`
   - `profit_i`: money charger *i* earned/paid this step (from EV2Gym's per-charger accounting).
   - departure term: only the charger whose car left pays for that car's shortfall.
-  - overload `λ_over · Σ overload²` is caused jointly → split equally between the 20 chargers (first version; a contribution-weighted split is a possible refinement).
+  - overload `λ_over · Σ overload²` is caused jointly → shared in proportion to how much each charger pushed in the overload direction (charging when above +limit, selling when below −limit); equally between that transformer's chargers if none did. Idle chargers are not blamed. (Implementation refinement of the first idea, an equal split over all 20.)
   - **Σ_i r_i = site reward R_t** of `rewards/shortfall_reward.py` → same overall objective. Enforced by a unit test.
 - **Training**: a wrapper presents one EV2Gym site as 20 environments to Stable-Baselines3, so 16 simulators give PPO 320 "chargers" per step. PPO settings, logging, validation, test and wandb stay as they are. Empty chargers get reward 0 (their action has no effect).
 - **Evaluation**: an adapter builds the 20 observations, calls the shared policy, and plays the day in the existing evaluation code, so all metrics stay comparable (site-level return = Σ_i r_i).
 
 ### Code (new branch `leopold/feat/p2-shared-charger-policy`)
-1. `envs/charger_obs.py` — per-charger observation builder (+ names, like `observation_names`).
-2. `rewards/shortfall_reward.py` — per-charger split of the existing terms.
-3. `envs/charger_vec_env.py` — one site → 20 SB3 environments.
-4. `eval/evaluate.py` — adapter for the shared policy.
+1. `envs/charger_obs.py` — per-charger observation (26 numbers) + names.
+2. `rewards/shortfall_reward.py` — `charger_terms`: per-charger split of the existing terms.
+3. `envs/charger_env.py` — `SiteChargerEnv` (one site, per-charger obs/rewards), `ChargerVecEnv` (K sites → K×20 SB3 envs), `SiteDummyVecEnv`.
+4. `eval/evaluate.py` — `SharedChargerPolicy` adapter; `agent_design: shared_charger` in the experiment config selects the design.
 5. Tests: per-charger rewards sum to the site reward; observation layout; actions reach the right charger; same seed ⇒ same episode.
 
 ## Why (and why not the alternatives)
@@ -51,6 +51,7 @@ Control the site with **one small policy shared by all chargers** ("parameter sh
 - **Fully independent agents per charger (different weights)** — 20× fewer examples per agent and no reason for chargers to behave differently (they are identical).
 
 ## Consequences
+- **Step counting:** configs and logs count *simulator* steps for both designs (SB3 internally counts 20× more for this design), so designs are compared on the same simulation budget.
 - **Coordination is indirect.** Each charger decides alone; it sees last step's site power, not the other chargers' current actions. The 100 kW transformer limit is learned through the shared overload penalty. Overload has been rare so far (AFAP: 0.14 kW summed over 50 test days); we will monitor it and refine the split if needed.
 - **Report wording:** the agents (PPO-RiskAware / PPO-Trusting / PPO-Oracle) are still PPO with the same reward; each is "one policy shared by all chargers". State this in the method section and cite [R18].
 - **Recurrent PPO (Phase 7)** works the same way: each charger has its own LSTM memory, sharing weights.
