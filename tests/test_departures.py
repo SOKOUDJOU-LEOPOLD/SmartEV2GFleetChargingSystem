@@ -128,3 +128,46 @@ def test_invalid_departure_settings_rejected():
         SyntheticDepartureModel(p_early=1.5)
     with pytest.raises(ValueError):
         SyntheticDepartureModel(p_early=0.1, cut_min=0.6, cut_max=0.5)
+
+
+def test_cross_evaluation_script(tmp_path, monkeypatch):
+    """evaluate_model.py tests one trained agent in several early-departure worlds."""
+    import importlib.util
+    import sys
+
+    import pandas as pd
+    import yaml
+
+    from smartev2g.agents.train import train
+    from smartev2g.envs.make_env import REPO_ROOT, resolve_path
+
+    monkeypatch.setenv("WANDB_MODE", "disabled")
+    scenarios = tmp_path / "scenarios.yaml"
+    scenarios.write_text(
+        yaml.safe_dump(
+            {
+                "validation": {"start": 1_000_000, "count": 1},
+                "test": {"start": 2_000_000, "count": 2},
+            }
+        )
+    )
+    cfg = yaml.safe_load(resolve_path("configs/experiments/p2_riskaware_ppo.yaml").read_text())
+    cfg["scenarios"] = str(scenarios)
+    cfg["training"].update(total_timesteps=224, n_envs=1, eval_every_steps=224)
+    cfg["ppo"].update(n_steps=224, batch_size=112, n_epochs=1)
+    path = tmp_path / "tiny.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+    run_dir = train(path, seed=0, results_dir=tmp_path / "results", verbose=False, run_test=False)
+
+    spec = importlib.util.spec_from_file_location(
+        "evaluate_model", REPO_ROOT / "scripts" / "evaluate_model.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(sys, "argv", ["x", "--run", str(run_dir), "--p-early", "0", "0.5"])
+    module.main()
+    summary = pd.read_csv(run_dir / "eval" / "test_summary.csv")
+    assert list(summary["test_p_early"]) == [0.0, 0.5]
+    assert summary["train_p_early"].iloc[0] == 0.1
+    assert summary.loc[0, "n_early"] == 0 and summary.loc[1, "n_early"] > 0
+    assert (run_dir / "eval" / "test_p0.5_evs.csv").exists()
