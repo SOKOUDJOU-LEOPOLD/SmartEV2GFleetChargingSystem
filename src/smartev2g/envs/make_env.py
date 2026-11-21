@@ -24,6 +24,7 @@ from ev2gym.models.ev2gym_env import EV2Gym
 from ev2gym.rl_agent import reward as ev2gym_reward
 from ev2gym.rl_agent import state as ev2gym_state
 
+from smartev2g.envs import state as our_state
 from smartev2g.rewards import sanity as sanity_rewards
 from smartev2g.rewards import shortfall_reward
 
@@ -37,6 +38,14 @@ DEFAULT_ENV_CONFIG = "configs/env/v2g_profitmax_20port.yaml"
 # A "reward function" gives the score after every step.
 STATE_FUNCTIONS: dict[str, Callable] = {
     "V2G_profit_max": ev2gym_state.V2G_profit_max,
+    # Ours: V2G_profit_max + per car the steps of charging still needed and the
+    # spare time (laxity) until its announced departure (envs/state.py).
+    "V2G_profit_max_laxity": our_state.V2G_profit_max_laxity,
+}
+# Numbers per port in each state function (for observation_names).
+PORT_FEATURES = {
+    "V2G_profit_max": ["soc", "t_dep"],
+    "V2G_profit_max_laxity": our_state.PORT_FEATURES_LAXITY,
 }
 REWARD_FUNCTIONS: dict[str, Callable] = {
     # EV2Gym's default V2G reward: profit minus a penalty for unhappy drivers.
@@ -66,7 +75,7 @@ def get_reward_function(name: str, reward_kwargs: dict | None = None) -> Callabl
 
 
 # Number of future prices the V2G_profit_max observation contains (fixed in EV2Gym).
-PRICE_HORIZON = 20
+PRICE_HORIZON = our_state.PRICE_HORIZON
 
 
 def resolve_path(path: str | Path) -> Path:
@@ -151,19 +160,21 @@ def make_env(
         os.remove(tmp)
 
 
-def observation_names(env: EV2Gym) -> list[str]:
-    """Name of every number in the V2G_profit_max observation, in order.
+def observation_names(env: EV2Gym, state_function: str = "V2G_profit_max") -> list[str]:
+    """Name of every number in the observation, in order.
 
-    Layout (Ref: [R1], EV2Gym `rl_agent/state.py`):
-      [t, P_prev, price_0..price_19, then for each port: soc_k, t_dep_k]
+    Layout (Ref: [R1], EV2Gym `rl_agent/state.py`; ours in envs/state.py):
+      [t, P_prev, price_0..price_19, then for each port k its features]
     - t: current step number
     - P_prev: total charging power of the site at the previous step (kW)
     - price_i: electricity price i steps ahead (a 20-step forecast)
     - soc_k: battery level of the car at port k (0 = empty, 1 = full; 0 if no car)
     - t_dep_k: steps left until the car's ANNOUNCED departure (0 if no car).
       This is the number our wrapper keeps "wrong" for early leavers (POMDP, [R10]).
+    - steps_needed_k, laxity_k (V2G_profit_max_laxity only): full-power charging
+      steps still needed, and spare time = t_dep_k − steps_needed_k.
     """
     names = ["t", "P_prev"] + [f"price_{i}" for i in range(PRICE_HORIZON)]
     for k in range(env.number_of_ports):
-        names += [f"soc_{k}", f"t_dep_{k}"]
+        names += [f"{feature}_{k}" for feature in PORT_FEATURES[state_function]]
     return names
