@@ -19,6 +19,7 @@ env:
     lambda_dep: 500.0 # weight of Σ (target SoC − SoC at departure)², SoC 0..1; calibrated (Phase 2 plan): grid {200, 500, 1000}
     lambda_over: 0.1 # weight of Σ (kW above transformer rating)²; 10 kW over ≈ one car 45 % short
   charging_target: 0.8 # battery level every driver wants at departure (ADR-0006)
+  departures: null # hidden early departures; null = everyone leaves on time (PPO-Trusting)
 
 scenarios: configs/eval/scenarios.yaml
 

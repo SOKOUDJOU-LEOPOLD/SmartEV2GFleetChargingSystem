@@ -64,9 +64,22 @@ def main() -> None:
     p.add_argument("--split", choices=["validation", "test"], default="test")
     p.add_argument("--random-seed", type=int, default=0, help="seed of the random policy")
     p.add_argument("--results-dir", type=Path, default=RESULTS_DIR)
+    p.add_argument(
+        "--p-early",
+        type=float,
+        default=None,
+        help="test world: rate of hidden early departures (default: the config's)",
+    )
     args = p.parse_args()
 
     cfg = load_config(args.config)
+    if args.p_early is not None:  # same days, different rate of hidden early departures
+        base = cfg["env"].get("departures") or {}
+        cfg["env"]["departures"] = {
+            **{"cut_min": 0.1, "cut_max": 0.5},
+            **base,
+            "p_early": args.p_early,
+        }
     seeds = scenario_seeds(args.split, cfg["scenarios"])
     run_dir = make_run_dir(make_run_id(f"baselines-{args.split}"), root=args.results_dir)
     info = RunInfo(run_dir, "scripts/evaluate_baselines.py", args.config, seeds, vars(args))

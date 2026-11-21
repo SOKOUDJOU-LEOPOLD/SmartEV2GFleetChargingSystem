@@ -59,25 +59,27 @@
 - [x] **Laxity observation** (`V2G_profit_max_laxity`: steps still needed + spare time per car): site agent −33.4, credit −35.6, AFAP −46.0 → **main agent = site agent + laxity** (`configs/experiments/p2_site_laxity_ppo.yaml`, ADR-0005 Outcome)
 
 ### Departure model (`src/smartev2g/envs/departure_models.py`)
-- [ ] Interface: `sample(ev, t_now, rng) -> T_actual or None`
-- [ ] `SyntheticDepartureModel(p_early, delta_distribution)` — e.g. Δ = uniform fraction of remaining stay (configurable); later Phase 6 adds `ACNDepartureModel`
+- [x] Interface: `sample(arrival, announced, rng) -> real departure step or None` (decided once per car right after reset)
+- [x] `SyntheticDepartureModel(p_early, cut_min=0.1, cut_max=0.5)` — an early car cuts a uniform 10–50 % of its announced stay; both random numbers always drawn, so early sets are nested across p_early (same days in every world). Phase 6 adds `ACNDepartureModel`
 
-### Wrapper (`src/smartev2g/envs/departure_wrapper.py`)
-- [ ] On EV connect: with probability `p_early` sample hidden `T_actual < T_scheduled`
-- [ ] When `t == T_actual`: force-disconnect the EV through EV2Gym internals (approach from ADR-0002)
-- [ ] Observation keeps `T_scheduled` only — `T_actual` never leaks
-- [ ] `info` logs: which EVs left early, by how much, their shortfall
-- [ ] Own RNG seeded from env seed (reproducible)
+### Hidden early departures (built into `ProjectEV2Gym`, `envs/make_env.py`, not a separate wrapper file)
+- [x] After reset: with probability `p_early` each car gets a hidden real departure `T_actual < T_scheduled` (`env.departure_plan`)
+- [x] At `t == T_actual`: just-in-time swap of `ev.time_of_departure`, so EV2Gym removes the car itself (ADR-0002); `max_energy_AFAP` refreshed
+- [x] Observation keeps `T_scheduled` only — `T_actual` never leaks
+- [x] Logs: per car `announced_departure`, `early`, `early_by_steps`, shortfall; per day `n_early`, `pct_early_met_target`, `mean_shortfall_early` (eval) and `day_seed`, `n_early` (training)
+- [x] Own RNG `default_rng([day_seed, 20261121])` (reproducible, does not disturb EV2Gym's draws)
+- [x] Train/test grid: `scripts/evaluate_model.py --p-early 0 0.05 0.1 0.2`; baselines `--p-early`
+- [x] First results (λ_dep 500, 3 seeds, EXPERIMENT_LOG): PPO-RiskAware (train p 0.1 or 0.2) vs PPO-Trusting differ by less than the seed spread — no clear hedging yet. Next: same check at λ_dep 1000
 
 ### Oracle (`src/smartev2g/envs/oracle_wrapper.py`)
 - [ ] Same hidden departures, but observation's time-to-departure uses `T_actual`
 
 ### Tests (`tests/`)
-- [ ] `p_early = 0` ⇒ trajectories identical to unwrapped env (same seed)
-- [ ] `T_actual` never appears in observation (non-oracle)
-- [ ] Early EV disconnects exactly at `T_actual`
+- [x] `p_early = 0` ⇒ trajectories identical to unwrapped env (same seed)
+- [x] `T_actual` never appears in observation (non-oracle)
+- [x] Early EV disconnects exactly at `T_actual`
 - [x] Penalty matches hand example: target 0.8, actual 0.5 ⇒ 0.3² = 0.09 (× λ)
-- [ ] Empirical early fraction ≈ `p_early` over many EVs
+- [x] Empirical early fraction ≈ `p_early` over many EVs
 - [ ] Oracle observation shows `T_actual`
 
 ## Exit criteria

@@ -19,12 +19,14 @@ from collections.abc import Callable
 from importlib import resources
 from pathlib import Path
 
+import numpy as np
 import yaml
 from ev2gym.models.ev2gym_env import EV2Gym
 from ev2gym.rl_agent import reward as ev2gym_reward
 from ev2gym.rl_agent import state as ev2gym_state
 
 from smartev2g.envs import state as our_state
+from smartev2g.envs.departure_models import make_departure_model
 from smartev2g.rewards import sanity as sanity_rewards
 from smartev2g.rewards import shortfall_reward
 
@@ -113,28 +115,69 @@ def load_env_config(config_path: str | Path = DEFAULT_ENV_CONFIG) -> dict:
     return config
 
 
-class TargetEV2Gym(EV2Gym):
-    """EV2Gym where every driver's charging target is `charging_target` × battery size.
+# Fixed stream id: the hidden departures of a day come from their own random
+# generator, seeded by (day seed, this id), never from EV2Gym's global ones (ADR-0002).
+DEPARTURE_RNG_STREAM = 20261121
 
-    Why not just set `ev.desired_capacity` in the EV2Gym config? EV2Gym also uses that
-    value when it creates cars: a car that would arrive above the target gets a new,
-    random arrival level (ev2gym/utilities/utils.py, spawn_single_EV). Changing it
-    would therefore change the simulated days themselves. Here the config stays at
-    1.0 (same cars, same days) and only the targets are changed, right after
-    `reset()` builds the day's car list and before any car arrives (ADR-0006).
+
+class ProjectEV2Gym(EV2Gym):
+    """EV2Gym with our two additions, both applied right after `reset()` builds the
+    day's car list (`EVs_profiles`; arriving cars are copies of these):
+
+    1. Charging target (ADR-0006): every driver wants `charging_target` × battery.
+       Why not `desired_capacity` in the EV2Gym config? EV2Gym also uses it when it
+       creates cars (arrival levels above the target are re-drawn at random), which
+       would change the simulated days themselves.
+    2. Hidden early departures (ADR-0002): a departure model decides, once per day,
+       which cars will REALLY leave early and when (`departure_plan`). The car keeps its
+       ANNOUNCED time (`ev.time_of_departure`), which is all the agent sees. Right
+       before the step at the real departure ("just-in-time swap"), we set
+       `ev.time_of_departure` to the real step, so EV2Gym's normal code removes the car
+       in that step; the next observation no longer contains it, so the real time
+       never appears in any observation. We also refresh `max_energy_AFAP`, which
+       EV2Gym cached at plug-in from the announced time (ADR-0002).
     """
 
-    def __init__(self, *args, charging_target: float, **kwargs) -> None:
-        if not 0 < charging_target <= 1:
+    def __init__(self, *args, charging_target=None, departure_model=None, **kwargs) -> None:
+        if charging_target is not None and not 0 < charging_target <= 1:
             raise ValueError("charging_target must be in (0, 1]")
-        self.charging_target = charging_target  # set first: EV2Gym's __init__ calls reset()
+        # Set first: EV2Gym's __init__ already calls reset().
+        self.charging_target = charging_target
+        self.departure_model = departure_model
+        self.departure_plan: dict[tuple[int, int], tuple[int, int]] = {}
         super().__init__(*args, **kwargs)
+
+    @staticmethod
+    def car_key(ev) -> tuple[int, int]:
+        """(charger, arrival step): unique per car in a day (one port per charger)."""
+        return (ev.location, ev.time_of_arrival)
 
     def reset(self, seed=None, options=None, **kwargs):
         _, info = super().reset(seed=seed, options=options, **kwargs)
-        for ev in self.EVs_profiles:  # arriving cars are copies of these profiles
-            ev.desired_capacity = self.charging_target * ev.battery_capacity
+        if self.charging_target is not None:
+            for ev in self.EVs_profiles:
+                ev.desired_capacity = self.charging_target * ev.battery_capacity
+        # departure_plan: car -> (announced step, real step), only for early leavers.
+        self.departure_plan = {}
+        if self.departure_model is not None:
+            rng = np.random.default_rng([int(self.seed), DEPARTURE_RNG_STREAM])
+            for ev in self.EVs_profiles:
+                real = self.departure_model.sample(ev.time_of_arrival, ev.time_of_departure, rng)
+                if real is not None:
+                    self.departure_plan[self.car_key(ev)] = (ev.time_of_departure, real)
         return self._get_observation(), info
+
+    def step(self, actions, visualize=False):
+        # Just-in-time swap for cars whose hidden real departure is THIS step.
+        for cs in self.charging_stations:
+            for ev in cs.evs_connected:
+                if ev is None:
+                    continue
+                plan = self.departure_plan.get(self.car_key(ev))
+                if plan is not None and plan[1] == self.current_step:
+                    ev.time_of_departure = plan[1]
+                    ev.calculate_max_energy_with_AFAP(cs.get_max_power())
+        return super().step(actions, visualize=visualize)
 
 
 def make_env(
@@ -144,6 +187,7 @@ def make_env(
     reward_function: str = "profit_maximization",
     reward_kwargs: dict | None = None,
     charging_target: float | None = None,
+    departures: dict | None = None,
     verbose: bool = False,
 ) -> EV2Gym:
     """Create an EV2Gym environment.
@@ -158,6 +202,8 @@ def make_env(
         reward_kwargs: settings of the reward, e.g. {"lambda_dep": 50, "lambda_over": 0.1}.
         charging_target: battery level (0..1) every driver wants when leaving, e.g. 0.8
             (ADR-0006). None = the EV2Gym config's `desired_capacity` (1.0 = full).
+        departures: hidden early departures, e.g. {"p_early": 0.1, "cut_min": 0.1,
+            "cut_max": 0.5} (envs/departure_models.py). None = everyone leaves on time.
         verbose: print EV2Gym's step-by-step messages.
 
     Note:
@@ -173,10 +219,13 @@ def make_env(
     try:
         with os.fdopen(fd, "w") as f:
             yaml.safe_dump(load_env_config(config_path), f)
-        env_class = EV2Gym
-        extra = {}
-        if charging_target is not None:
-            env_class, extra = TargetEV2Gym, {"charging_target": charging_target}
+        env_class, extra = EV2Gym, {}
+        if charging_target is not None or departures:
+            env_class = ProjectEV2Gym
+            extra = {
+                "charging_target": charging_target,
+                "departure_model": make_departure_model(departures),
+            }
         return env_class(
             config_file=tmp,
             seed=seed,

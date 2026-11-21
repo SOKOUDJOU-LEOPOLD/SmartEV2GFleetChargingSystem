@@ -70,6 +70,7 @@ def env_kwargs(cfg: dict[str, Any]) -> dict[str, Any]:
         "reward_function": e["reward_function"],
         "reward_kwargs": e.get("reward_kwargs"),
         "charging_target": e.get("charging_target"),  # e.g. 0.8 (ADR-0006); None = 100 %
+        "departures": e.get("departures"),  # hidden early departures; None = all on time
     }
 
 
@@ -376,9 +377,12 @@ def train(
     return run_dir
 
 
-def test_best_model(cfg: dict[str, Any], run_dir: Path) -> tuple[dict[str, Any], pd.DataFrame]:
-    """Evaluate the best validation checkpoint (or the final model) on the fixed test days."""
-    name = "best" if (run_dir / "best_model.zip").exists() else "final"
+def load_trained_policy(cfg: dict[str, Any], run_dir: Path, checkpoint: str | None = None):
+    """The trained agent of a run, ready to evaluate: (policy, checkpoint name).
+
+    checkpoint: "best" (chosen on validation days) or "final"; default: best if saved.
+    """
+    name = checkpoint or ("best" if (run_dir / "best_model.zip").exists() else "final")
     design = agent_design(cfg)
     model = algorithm(design).load(run_dir / f"{name}_model.zip", device="cpu")
     vec_norm = None
@@ -388,7 +392,13 @@ def test_best_model(cfg: dict[str, Any], run_dir: Path) -> tuple[dict[str, Any],
         dummy = _wrap_sites(in_process([_env_factory(env_kwargs(cfg), design)]), design)
         vec_norm = VecNormalize.load(str(norm_path), dummy)
         vec_norm.training = False  # freeze the rescaling statistics during testing
-    policy = make_sb3_policy(design, model, vec_norm, name=cfg["agent"])
+    return make_sb3_policy(design, model, vec_norm, name=cfg["agent"]), name
+
+
+def test_best_model(cfg: dict[str, Any], run_dir: Path) -> tuple[dict[str, Any], pd.DataFrame]:
+    """Evaluate the best validation checkpoint (or the final model) on the fixed test days,
+    in the same world the agent was trained in (scripts/evaluate_model.py tests others)."""
+    policy, name = load_trained_policy(cfg, run_dir)
     episodes, cars = evaluate_policy(
         policy, scenario_seeds("test", cfg["scenarios"]), env_kwargs(cfg)
     )
