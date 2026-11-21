@@ -1,8 +1,11 @@
 # Phase 2 MAIN AGENT: standard PPO controlling the whole site ("site" design, our
 # original plan) with our reward and the LAXITY observation, no early departures yet
-# (p_early = 0, "PPO-Trusting" setting). Best design in the Phase 2 comparison
-# (test −33.4 vs AFAP −46.0; ADR-0005 Outcome, EXPERIMENT_LOG).
-# λ values are PROVISIONAL (calibrated in Phase 4).
+# (p_early = 0, "PPO-Trusting" setting). Best design in the Phase 2 comparison at a
+# 100 % target (test −33.4 vs AFAP −46.0; ADR-0005 Outcome, EXPERIMENT_LOG).
+# Every driver now wants 80 % (ADR-0006); compare with AFAP-to-target. The 100 %
+# case is the sensitivity check: --set env.charging_target=1.0
+# λ_dep = 500: development default from the first calibration at the 80 % target
+# (Phase 2 plan); Phase 4 runs the grid {200, 500, 1000} with >= 5 seeds.
 
 name: p2-site-laxity-ppo
 agent: PPO-Trusting
@@ -13,8 +16,9 @@ env:
   state_function: V2G_profit_max_laxity # + per car: steps still needed and spare time (envs/state.py)
   reward_function: squared_shortfall # profit − λ_over·overload² − λ_dep·shortfall² (rewards/shortfall_reward.py)
   reward_kwargs:
-    lambda_dep: 50.0 # weight of Σ (target SoC − SoC at departure)², SoC as fraction 0..1
+    lambda_dep: 500.0 # weight of Σ (target SoC − SoC at departure)², SoC 0..1; calibrated (Phase 2 plan): grid {200, 500, 1000}
     lambda_over: 0.1 # weight of Σ (kW above transformer rating)²; 10 kW over ≈ one car 45 % short
+  charging_target: 0.8 # battery level every driver wants at departure (ADR-0006)
 
 scenarios: configs/eval/scenarios.yaml
 

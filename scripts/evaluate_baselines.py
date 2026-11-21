@@ -1,4 +1,4 @@
-"""Evaluate the non-learning baselines (AFAP, Random) on the fixed test days.
+"""Evaluate the non-learning baselines (AFAP, AFAP-to-target, Random) on the fixed test days.
 
 Gives the reference numbers PPO must beat (Phase 1 sanity check).
 
@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from smartev2g.agents.baselines import AFAPPolicy, RandomPolicy
+from smartev2g.agents.baselines import AFAPPolicy, AFAPToTargetPolicy, RandomPolicy
 from smartev2g.agents.train import env_kwargs, load_config
 from smartev2g.eval.evaluate import evaluate_policy, scenario_seeds
 from smartev2g.utils.logging import init_wandb
@@ -74,7 +74,7 @@ def main() -> None:
 
     prefix = "val" if args.split == "validation" else "test"
     episodes, cars = [], []
-    for policy in [AFAPPolicy(), RandomPolicy(seed=args.random_seed)]:
+    for policy in [AFAPPolicy(), AFAPToTargetPolicy(), RandomPolicy(seed=args.random_seed)]:
         ep, ev = evaluate_policy(policy, seeds, env_kwargs(cfg))
         episodes.append(ep)
         cars.append(ev)

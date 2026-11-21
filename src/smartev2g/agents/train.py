@@ -69,6 +69,7 @@ def env_kwargs(cfg: dict[str, Any]) -> dict[str, Any]:
         "state_function": e["state_function"],
         "reward_function": e["reward_function"],
         "reward_kwargs": e.get("reward_kwargs"),
+        "charging_target": e.get("charging_target"),  # e.g. 0.8 (ADR-0006); None = 100 %
     }
 
 
