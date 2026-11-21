@@ -10,6 +10,8 @@ from __future__ import annotations
 import numpy as np
 from ev2gym.baselines.heuristics import ChargeAsFastAsPossible
 
+from smartev2g.envs.state import steps_to_target
+
 
 class AFAPPolicy:
     """Charge every car as fast as possible, never sell energy back (no V2G).
@@ -27,6 +29,34 @@ class AFAPPolicy:
 
     def act(self, obs: np.ndarray, env) -> np.ndarray:
         return self._afap.get_action(env)
+
+
+class AFAPToTargetPolicy:
+    """Charge every car as fast as possible UNTIL it reaches its target, then stop.
+
+    EV2Gym's AFAP keeps charging until the battery is full, even when the driver only
+    wants 80 %, paying for energy nobody asked for. This version is the fair "safe"
+    baseline when targets are below 100 % (ADR-0006). In the last step before the
+    target it charges only the fraction still needed (cars may end up to ~2.5 % above
+    target: EV2Gym's real current/efficiency do not scale exactly with that fraction).
+    No V2G.
+    """
+
+    name = "AFAP-target"
+
+    def reset(self, seed: int) -> None:
+        pass
+
+    def act(self, obs: np.ndarray, env) -> np.ndarray:
+        base = env.unwrapped
+        actions = []
+        for cs in base.charging_stations:
+            for ev in cs.evs_connected:
+                if ev is None:
+                    actions.append(0.0)
+                else:  # steps still needed at full power; < 1 -> charge that fraction
+                    actions.append(min(1.0, steps_to_target(ev, cs, base.timescale)))
+        return np.array(actions)
 
 
 class RandomPolicy:

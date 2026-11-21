@@ -113,12 +113,37 @@ def load_env_config(config_path: str | Path = DEFAULT_ENV_CONFIG) -> dict:
     return config
 
 
+class TargetEV2Gym(EV2Gym):
+    """EV2Gym where every driver's charging target is `charging_target` × battery size.
+
+    Why not just set `ev.desired_capacity` in the EV2Gym config? EV2Gym also uses that
+    value when it creates cars: a car that would arrive above the target gets a new,
+    random arrival level (ev2gym/utilities/utils.py, spawn_single_EV). Changing it
+    would therefore change the simulated days themselves. Here the config stays at
+    1.0 (same cars, same days) and only the targets are changed, right after
+    `reset()` builds the day's car list and before any car arrives (ADR-0006).
+    """
+
+    def __init__(self, *args, charging_target: float, **kwargs) -> None:
+        if not 0 < charging_target <= 1:
+            raise ValueError("charging_target must be in (0, 1]")
+        self.charging_target = charging_target  # set first: EV2Gym's __init__ calls reset()
+        super().__init__(*args, **kwargs)
+
+    def reset(self, seed=None, options=None, **kwargs):
+        _, info = super().reset(seed=seed, options=options, **kwargs)
+        for ev in self.EVs_profiles:  # arriving cars are copies of these profiles
+            ev.desired_capacity = self.charging_target * ev.battery_capacity
+        return self._get_observation(), info
+
+
 def make_env(
     config_path: str | Path = DEFAULT_ENV_CONFIG,
     seed: int | None = None,
     state_function: str = "V2G_profit_max",
     reward_function: str = "profit_maximization",
     reward_kwargs: dict | None = None,
+    charging_target: float | None = None,
     verbose: bool = False,
 ) -> EV2Gym:
     """Create an EV2Gym environment.
@@ -131,6 +156,8 @@ def make_env(
         reward_function: name in REWARD_FUNCTIONS or REWARD_FACTORIES (how the agent
             is scored).
         reward_kwargs: settings of the reward, e.g. {"lambda_dep": 50, "lambda_over": 0.1}.
+        charging_target: battery level (0..1) every driver wants when leaving, e.g. 0.8
+            (ADR-0006). None = the EV2Gym config's `desired_capacity` (1.0 = full).
         verbose: print EV2Gym's step-by-step messages.
 
     Note:
@@ -146,7 +173,11 @@ def make_env(
     try:
         with os.fdopen(fd, "w") as f:
             yaml.safe_dump(load_env_config(config_path), f)
-        return EV2Gym(
+        env_class = EV2Gym
+        extra = {}
+        if charging_target is not None:
+            env_class, extra = TargetEV2Gym, {"charging_target": charging_target}
+        return env_class(
             config_file=tmp,
             seed=seed,
             state_function=STATE_FUNCTIONS[state_function],
@@ -155,6 +186,7 @@ def make_env(
             save_plots=False,
             lightweight_plots=True,
             verbose=verbose,
+            **extra,
         )
     finally:
         os.remove(tmp)
