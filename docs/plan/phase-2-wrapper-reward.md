@@ -23,7 +23,7 @@
   | **500** | **−6.3** | **0.79** | **87 %** | **99 %** |
   | 1000 | −10.1 | 0.82 | 92 % | 100 % |
 
-  Proposed: λ_dep ∈ {200, 500, 1000} for the main grid, **500 as default** (most drivers within 5 % of target, saves ~9 €/day vs AFAP-target). Confirm over ≥ 5 seeds in Phase 4.
+  **Decided (Leopold, 2026-11-21):** λ_dep ∈ {200, 500, 1000} for the main grid, **500 as development default** (λ = 1000 = "drivers first" setting in the paper) (most drivers within 5 % of target, saves ~9 €/day vs AFAP-target). Confirm over ≥ 5 seeds in Phase 4.
 - [ ] **λ values (remaining).** No study gives a "true" λ_dep: sweep several values and report profit-vs-shortfall trade-off curves (Literature Review, refinement 1), choose the range so PPO-Trusting satisfies most drivers without early departures (Phase 4); optionally anchor λ in euros via the cost of getting the missing energy elsewhere (e.g. public charging price, to be looked up).
 - [ ] **Perfect-knowledge reference.** Add the per-day optimum with perfect knowledge of prices and departures (linear/quadratic program) as an upper bound, so results can be reported as "% of the gap between AFAP and the best possible closed".
 
