@@ -1,7 +1,7 @@
 # ADR-0005: One central agent with per-charger credit ("credit PPO")
 
 - **Date:** 2026-11-20
-- **Status:** Accepted (chosen by Leopold, 2026-11-20). Supersedes the *policy design* of ADR-0004; ADR-0004's per-charger reward split is kept and reused.
+- **Status:** Implemented and tested; **not adopted as the main design** (2026-11-20, see *Outcome*). Supersedes the *policy design* of ADR-0004; ADR-0004's per-charger reward split is kept and reused.
 - **Author(s):** Leopold Sokoudjou Gatsing
 
 ## Context
@@ -52,3 +52,16 @@ So each action is judged by **its own charger's outcome** (clear credit), while 
 - More custom code than plain SB3 PPO (≈ 300 lines + tests) — kept small, commented, and tested against SB3's own behaviour.
 - The paper's method section describes "PPO with per-charger advantage decomposition" (one central policy); the agents (RiskAware / Trusting / Oracle) all use it.
 - RecurrentPPO (Phase 7) would need the same changes in sb3-contrib's recurrent version; revisit then.
+
+## Outcome (2026-11-20)
+Built as planned (`agents/credit_ppo.py`, `agent_design: central_credit`); the two exactness tests pass. Results (3M steps, λ_dep 50, λ_over 0.1, 50 test days; EXPERIMENT_LOG):
+
+| | Without laxity | With laxity observation (`V2G_profit_max_laxity`) |
+|---|---|---|
+| Site agent (standard PPO) | −68.7 | **−33.4** |
+| Central agent + per-charger credit | −86.3 | −35.6 |
+| AFAP | −46.0 | −46.0 |
+
+The main obstacle was missing information, not credit assignment: the observation showed each car's SoC but not its battery size, so the agent could not tell how long a car needs to charge. With the laxity observation (time still needed at full power, spare time until the announced departure) both designs beat AFAP, and per-charger credit adds nothing (and still overloads on some days).
+
+**Decision:** the main agent is the **site agent (standard SB3 PPO) with the laxity observation** (`configs/experiments/p2_site_laxity_ppo.yaml`). CreditPPO stays in the code base, tested and documented, as an alternative design (one seed so far; revisit if the early-departure experiments show credit problems again).

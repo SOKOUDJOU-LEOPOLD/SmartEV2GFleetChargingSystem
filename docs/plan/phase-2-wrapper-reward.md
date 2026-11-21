@@ -21,7 +21,8 @@
 |---|---|
 | `leopold/feat/p2-shortfall-reward` | Reward function (+ first PPO runs, ADR-0004) |
 | `leopold/feat/p2-shared-charger-policy` | One policy shared by all chargers, per-charger rewards (ADR-0004), seed fix |
-| `leopold/feat/p2-central-credit-ppo` | Central agent with per-charger credit (ADR-0005) |
+| `leopold/feat/p2-central-credit-ppo` | Central agent with per-charger credit (ADR-0005), laxity observation, main-agent choice |
+| `leopold/feat/p2-target-80` | 80 % charging target, AFAP-to-target baseline |
 | `<name>/feat/p2-departure-wrapper` | UnexpectedDepartureWrapper + synthetic departure model |
 | `<name>/feat/p2-oracle-wrapper` | Oracle observation (true departure visible) |
 
@@ -40,10 +41,11 @@
 - [x] Evaluation adapter; PPO run vs AFAP / Random → drivers well served, but uncoordinated chargers overload the transformer → ADR-0005
 
 ### Central agent with per-charger credit (ADR-0005, `leopold/feat/p2-central-credit-ppo`)
-- [ ] `CreditPPO`: 20-output critic, per-charger GAE and PPO loss (`agents/credit_ppo.py`)
-- [ ] Site observation + vector rewards env; `agent_design: central_credit`
-- [ ] Tests: per-charger GAE sums to site GAE; log-prob decomposition; end-to-end run
-- [ ] λ_over = 0.1, fixed reward scale; PPO run vs AFAP / Random
+- [x] `CreditPPO`: 20-output critic, per-charger GAE and PPO loss (`agents/credit_ppo.py`)
+- [x] Site observation + vector rewards env; `agent_design: central_credit`
+- [x] Tests: per-charger GAE sums to site GAE; log-prob decomposition; end-to-end run
+- [x] λ_over = 0.1, fixed reward scale; PPO run vs AFAP / Random → no better than the site agent
+- [x] **Laxity observation** (`V2G_profit_max_laxity`: steps still needed + spare time per car): site agent −33.4, credit −35.6, AFAP −46.0 → **main agent = site agent + laxity** (`configs/experiments/p2_site_laxity_ppo.yaml`, ADR-0005 Outcome)
 
 ### Departure model (`src/smartev2g/envs/departure_models.py`)
 - [ ] Interface: `sample(ev, t_now, rng) -> T_actual or None`
