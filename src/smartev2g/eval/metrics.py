@@ -33,8 +33,11 @@ EV2GYM_STATS = [
 
 def ev_rows(env, seed: int) -> list[dict[str, Any]]:
     """One row per car that arrived during the episode (env.EVs, in arrival order)."""
+    plan = getattr(env.unwrapped, "departure_plan", {})  # hidden early departures, if any
     rows = []
     for i, ev in enumerate(env.EVs):
+        early = plan.get((ev.location, ev.time_of_arrival))  # (announced, real) or None
+        announced = early[0] if early else ev.time_of_departure
         soc = ev.current_capacity / ev.battery_capacity
         target = ev.desired_capacity / ev.battery_capacity
         rows.append(
@@ -44,7 +47,10 @@ def ev_rows(env, seed: int) -> list[dict[str, Any]]:
                 "charger": ev.location,
                 "port": ev.id,  # EV2Gym's ev.id is the port number, not a unique id
                 "arrival_step": ev.time_of_arrival,
-                "departure_step": ev.time_of_departure,
+                "departure_step": ev.time_of_departure,  # when it really left
+                "announced_departure": announced,  # what the agent was told
+                "early": early is not None,
+                "early_by_steps": announced - ev.time_of_departure,
                 "stay_steps": ev.time_of_departure - ev.time_of_arrival,
                 "stay_hours": (ev.time_of_departure - ev.time_of_arrival) * env.timescale / 60,
                 "battery_kwh": ev.battery_capacity,
@@ -76,12 +82,19 @@ def episode_row(
             row[key] = float(info[key])
     shortfall = np.array([e["shortfall"] for e in evs], dtype=float)
     below = np.array([e["below_target"] for e in evs], dtype=bool)
+    early = np.array([e.get("early", False) for e in evs], dtype=bool)
     row.update(
         {
             "n_evs": len(evs),
             "pct_evs_met_target": float(100 * (1 - below.mean())) if len(evs) else np.nan,
             "mean_shortfall": float(shortfall.mean()) if len(evs) else np.nan,
             "max_shortfall": float(shortfall.max()) if len(evs) else np.nan,
+            # Proposal §11: how well cars that left EARLY (unannounced) were served.
+            "n_early": int(early.sum()),
+            "pct_early_met_target": float(100 * (1 - below[early].mean()))
+            if early.any()
+            else np.nan,
+            "mean_shortfall_early": float(shortfall[early].mean()) if early.any() else np.nan,
         }
     )
     return row

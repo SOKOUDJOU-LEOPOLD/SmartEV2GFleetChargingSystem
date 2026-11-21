@@ -11,7 +11,7 @@ It also leaves almost no room for the trade-off we study: with a 100 % target, e
 
 ## Decision
 1. **Every driver's target is 80 % of their battery** (`env.charging_target: 0.8` in experiment configs) for Deliverable 1. 100 % is run as a **sensitivity check** (`--set env.charging_target=1.0`).
-2. **How:** the EV2Gym config keeps `desired_capacity: 1`; `TargetEV2Gym` (`envs/make_env.py`) sets each car's target to 0.8 × battery right after `reset()` builds the day's car list, before any car arrives.
+2. **How:** the EV2Gym config keeps `desired_capacity: 1`; `ProjectEV2Gym` (`envs/make_env.py`; first called `TargetEV2Gym`) sets each car's target to 0.8 × battery right after `reset()` builds the day's car list, before any car arrives.
 3. **New baseline "AFAP-target"** (`agents/baselines.py`): charge every car at full speed **until it reaches its target**, then stop; no V2G. EV2Gym's AFAP keeps charging to 100 %, paying for energy nobody asked for, so it is not a fair "safe" baseline when targets are below 100 %. Both are reported.
 
 ## Why (and why not the alternatives)
