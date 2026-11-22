@@ -69,7 +69,8 @@
 - [x] Logs: per car `announced_departure`, `early`, `early_by_steps`, shortfall; per day `n_early`, `pct_early_met_target`, `mean_shortfall_early` (eval) and `day_seed`, `n_early` (training)
 - [x] Own RNG `default_rng([day_seed, 20261121])` (reproducible, does not disturb EV2Gym's draws)
 - [x] Train/test grid: `scripts/evaluate_model.py --p-early 0 0.05 0.1 0.2`; baselines `--p-early`
-- [x] First results (λ_dep 500, 3 seeds, EXPERIMENT_LOG): PPO-RiskAware (train p 0.1 or 0.2) vs PPO-Trusting differ by less than the seed spread — no clear hedging yet. Next: same check at λ_dep 1000
+- [x] First results (λ_dep 500, 3 seeds, EXPERIMENT_LOG): PPO-RiskAware (train p 0.1 or 0.2) vs PPO-Trusting differ by less than the seed spread — no clear hedging yet.
+- [x] λ_dep 1000 check (3 seeds): PPO-RiskAware (train p 0.2) hedges — sells less, pays ~1.8 €/day, early leavers reaching 80 % 39 % vs 31 %, better score in every risky world (gap ≈ 1 std; needs ≥ 5 seeds in Phase 4). Both PPO agents still score below AFAP-target (only ~half the cars reach 80 %) → perfect-knowledge optimum next
 
 ### Oracle (`src/smartev2g/envs/oracle_wrapper.py`)
 - [ ] Same hidden departures, but observation's time-to-departure uses `T_actual`
