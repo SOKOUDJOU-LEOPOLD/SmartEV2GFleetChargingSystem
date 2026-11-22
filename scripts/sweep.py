@@ -196,10 +196,14 @@ def prepare_teacher_data(spec: dict, jobs: list[dict]) -> None:
         if not pre:
             continue
         key = yaml.safe_dump(env_kwargs(cfg), sort_keys=True)
+        expert = pre.get("expert", "optimum-announced")
+        key += expert
         if key in seen:
             continue
         seen.add(key)
-        collect_expert_data(env_kwargs(cfg), pre["days"], pre["first_day"], pre.get("workers", 16))
+        collect_expert_data(
+            env_kwargs(cfg), pre["days"], pre["first_day"], pre.get("workers", 16), expert
+        )
 
 
 def drive(sweep_file: str, results_dir: Path, dry_run: bool) -> None:

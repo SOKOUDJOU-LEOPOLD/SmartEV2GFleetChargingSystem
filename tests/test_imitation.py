@@ -62,3 +62,18 @@ def test_warm_start_copies_the_teacher(tmp_path, monkeypatch):
     actions, _ = policy.model.predict(obs, deterministic=True)
     close = np.mean(np.abs(np.clip(actions, -1, 1) - data["actions"][:112]) < 0.25)
     assert close > 0.8
+
+
+def test_oracle_teacher_knows_real_departures(tmp_path, monkeypatch):
+    """expert: optimum-real -> a separate cache, and a teacher that plans on real departures."""
+    monkeypatch.setattr(imitation, "CACHE_DIR", tmp_path)
+    cfg = load_config(CONFIG)
+    cfg["env"]["departures"] = {"p_early": 0.5}
+    kw = env_kwargs(cfg)
+    trusting = imitation.collect_expert_data(kw, days=2, first_day=900_000, workers=2)
+    knowing = imitation.collect_expert_data(
+        kw, days=2, first_day=900_000, workers=2, expert="optimum-real"
+    )
+    assert len(list(tmp_path.glob("*.npz"))) == 2
+    # Knowing who leaves early is worth reward on the same days.
+    assert knowing["rewards"].sum() > trusting["rewards"].sum()
