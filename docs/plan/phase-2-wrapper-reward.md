@@ -27,6 +27,11 @@
 - [ ] **λ values (remaining).** No study gives a "true" λ_dep: sweep several values and report profit-vs-shortfall trade-off curves (Literature Review, refinement 1), choose the range so PPO-Trusting satisfies most drivers without early departures (Phase 4); optionally anchor λ in euros via the cost of getting the missing energy elsewhere (e.g. public charging price, to be looked up).
 - [x] **Perfect-knowledge reference.** Add the per-day optimum with perfect knowledge of prices and departures (linear/quadratic program) as an upper bound, so results can be reported as "% of the gap between AFAP and the best possible closed".
   **Done:** `eval/optimum.py` (`plan_day`, `PerfectPlanPolicy`; LP with HiGHS, squares as tangent cuts, EV2Gym battery maths checked against the simulator) + `scripts/evaluate_optimum.py`. Two versions: Optimum-real (knows real departures = ceiling) and Optimum-announced (trusts announced ones). λ 500, test p 0.1: AFAP-target −15.1, Optimum-announced +2.4, Optimum-real +11.0; PPO agents ≈ −15. Optional later: Optimum-risk (knows the risk, not which car) = the best possible hedger.
+- [x] **Why PPO captures so little (diagnosis, EXPERIMENT_LOG 2026-11-21).** PPO moves as much energy as the optimum but does not time it (buy/sell spread 0.2 c vs 5.3 c) and flips charge↔discharge ~20×/car/day, mostly while holding cars near 80 %. Validation plateaus at ~850k steps; updates were too large (approx_kl 0.14–0.27).
+  - Calmer PPO updates (setting B: lr 1e-4, n_epochs 5, batch 2048; `target_kl` now in the config, off by default): healthy training, +1–2 points.
+  - Day-ahead price view (`V2G_profit_max_laxity_dayahead`: all published prices of the next 24 h, tomorrow's from 13:00): 3× better spread, fewer flips, more cars served, same score.
+  - Trade-timing metrics in every evaluation: `avg_buy_price`, `avg_sell_price`, `trade_spread`, `switches_per_car`.
+- [ ] **Imitation warm start (next, `feat/p2-imitation-warmstart`).** Teach PPO by example first: clone Optimum-announced (uses only what the agent sees: day-ahead prices + announced departures) on ~2,000 training days, pre-train the critic on the same days, then continue with PPO (setting B, day-ahead view). Same warm start for PPO-Trusting and PPO-RiskAware.
 
 ## Branches
 | Branch | Content |

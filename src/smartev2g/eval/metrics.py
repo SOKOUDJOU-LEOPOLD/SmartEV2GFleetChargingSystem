@@ -98,3 +98,72 @@ def episode_row(
         }
     )
     return row
+
+
+# Battery changes smaller than this (kWh per step) are not counted as charging or
+# discharging: EV2Gym rounds every active battery UP to 0.01 kWh.
+TRADE_MIN_KWH = 0.02
+
+
+class TradeTracker:
+    """How well a policy TIMES its energy trades (added after the optimum comparison).
+
+    Call `before_step(env)` and `after_step()` around every env.step. Gives per day:
+    - avg_buy_price / avg_sell_price: average €/kWh paid when charging / earned when
+      discharging (weighted by energy). A good trader buys low and sells high;
+    - trade_spread = avg_sell_price − avg_buy_price (the perfect-knowledge plan gets
+      ~3.8 cents; a policy that sells as often as it buys at random prices gets ~0);
+    - switches_per_car: how often a car flips between charging and discharging
+      (the optimum ~4 per day; many more means jittering, not trading).
+    """
+
+    def __init__(self) -> None:
+        self.bought = self.paid = self.sold = self.earned = 0.0
+        self.last_sign: dict[tuple[int, int], int] = {}
+        self.switches: dict[tuple[int, int], int] = {}
+        self._pending: list = []
+
+    def before_step(self, env) -> None:
+        base = env.unwrapped
+        t = base.current_step
+        self._pending = [
+            (
+                ev,
+                ev.current_capacity,
+                abs(base.charge_prices[cs.id, t]),
+                abs(base.discharge_prices[cs.id, t]),
+            )
+            for cs in base.charging_stations
+            for ev in cs.evs_connected
+            if ev is not None
+        ]
+
+    def after_step(self) -> None:
+        for ev, before, buy, sell in self._pending:
+            change = ev.current_capacity - before
+            key = (ev.location, ev.time_of_arrival)
+            self.switches.setdefault(key, 0)
+            if abs(change) < TRADE_MIN_KWH:
+                continue
+            sign = 1 if change > 0 else -1
+            if sign > 0:
+                self.bought += change
+                self.paid += change * buy
+            else:
+                self.sold -= change
+                self.earned -= change * sell
+            if self.last_sign.get(key, sign) != sign:
+                self.switches[key] += 1
+            self.last_sign[key] = sign
+
+    def row(self) -> dict[str, float]:
+        buy = self.paid / self.bought if self.bought > 0 else np.nan
+        sell = self.earned / self.sold if self.sold > 0 else np.nan
+        return {
+            "avg_buy_price": float(buy),
+            "avg_sell_price": float(sell),
+            "trade_spread": float(sell - buy),
+            "switches_per_car": float(np.mean(list(self.switches.values())))
+            if self.switches
+            else np.nan,
+        }

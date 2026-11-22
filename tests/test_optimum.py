@@ -81,3 +81,15 @@ def test_invalid_version_rejected():
     env.reset(seed=DAY)
     with pytest.raises(ValueError):
         plan_day(env, "psychic")
+
+
+def test_trade_metrics_separate_timing_from_jitter():
+    """eval/metrics.py TradeTracker: the optimum buys low / sells high with few
+    switches; AFAP-target never sells and never switches."""
+    days = [DAY, DAY + 1]
+    best, _ = evaluate_policy(PerfectPlanPolicy("real"), days, REWARD)
+    safe, _ = evaluate_policy(AFAPToTargetPolicy(), days, REWARD)
+    assert (best["trade_spread"] > 0.01).all()
+    assert (best["switches_per_car"] < 8).all()
+    assert (safe["switches_per_car"] == 0).all()
+    assert safe["avg_sell_price"].isna().all()

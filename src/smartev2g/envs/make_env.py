@@ -43,11 +43,14 @@ STATE_FUNCTIONS: dict[str, Callable] = {
     # Ours: V2G_profit_max + per car the steps of charging still needed and the
     # spare time (laxity) until its announced departure (envs/state.py).
     "V2G_profit_max_laxity": our_state.V2G_profit_max_laxity,
+    # Same + every published day-ahead price of the next 24 h instead of 5 h.
+    "V2G_profit_max_laxity_dayahead": our_state.V2G_profit_max_laxity_dayahead,
 }
 # Numbers per port in each state function (for observation_names).
 PORT_FEATURES = {
     "V2G_profit_max": ["soc", "t_dep"],
     "V2G_profit_max_laxity": our_state.PORT_FEATURES_LAXITY,
+    "V2G_profit_max_laxity_dayahead": our_state.PORT_FEATURES_LAXITY,
 }
 REWARD_FUNCTIONS: dict[str, Callable] = {
     # EV2Gym's default V2G reward: profit minus a penalty for unhappy drivers.
@@ -252,10 +255,16 @@ def observation_names(env: EV2Gym, state_function: str = "V2G_profit_max") -> li
     - soc_k: battery level of the car at port k (0 = empty, 1 = full; 0 if no car)
     - t_dep_k: steps left until the car's ANNOUNCED departure (0 if no car).
       This is the number our wrapper keeps "wrong" for early leavers (POMDP, [R10]).
-    - steps_needed_k, laxity_k (V2G_profit_max_laxity only): full-power charging
+    - (…_dayahead: price_0..price_95 = every PUBLISHED day-ahead price of the next
+      24 h, 0 if not yet published; n_known = how many are real)
+    - steps_needed_k, laxity_k (laxity state functions only): full-power charging
       steps still needed, and spare time = t_dep_k − steps_needed_k.
     """
-    names = ["t", "P_prev"] + [f"price_{i}" for i in range(PRICE_HORIZON)]
+    if state_function == "V2G_profit_max_laxity_dayahead":  # 24 h of prices + count
+        prices = [f"price_{i}" for i in range(our_state.DAYAHEAD_HORIZON)] + ["n_known"]
+    else:
+        prices = [f"price_{i}" for i in range(PRICE_HORIZON)]
+    names = ["t", "P_prev"] + prices
     for k in range(env.number_of_ports):
         names += [f"{feature}_{k}" for feature in PORT_FEATURES[state_function]]
     return names

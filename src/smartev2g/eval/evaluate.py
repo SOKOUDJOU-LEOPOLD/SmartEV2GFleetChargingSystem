@@ -15,7 +15,7 @@ import pandas as pd
 import yaml
 
 from smartev2g.envs.make_env import make_env, resolve_path
-from smartev2g.eval.metrics import episode_row, ev_rows
+from smartev2g.eval.metrics import TradeTracker, episode_row, ev_rows
 
 
 class Policy(Protocol):
@@ -101,12 +101,17 @@ def run_episode(policy: Policy, env, seed: int):
     obs, _ = env.reset(seed=seed)
     policy.reset(seed)
     total, done, info = 0.0, False, {}
+    trades = TradeTracker()  # price timing of charging/discharging (eval/metrics.py)
     while not done:
-        obs, reward, terminated, truncated, info = env.step(policy.act(obs, env))
+        action = policy.act(obs, env)
+        trades.before_step(env)
+        obs, reward, terminated, truncated, info = env.step(action)
+        trades.after_step()
         total += reward
         done = terminated or truncated
     evs = ev_rows(env, seed)
     row = episode_row(seed, total, info, evs)
+    row.update(trades.row())
     # Our reward's separate terms for this day (only rewards that record them).
     for k, v in (getattr(env, "reward_terms_episode", None) or {}).items():
         row[f"reward_{k}"] = float(v)
