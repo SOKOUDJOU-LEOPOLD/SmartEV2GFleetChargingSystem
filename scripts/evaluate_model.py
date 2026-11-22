@@ -43,7 +43,7 @@ def main() -> None:
     p.add_argument("--run", type=Path, required=True, help="results/<run_id> of a trained agent")
     p.add_argument("--p-early", type=float, nargs="+", default=[0.0, 0.05, 0.1, 0.2])
     p.add_argument("--split", choices=["validation", "test"], default="test")
-    p.add_argument("--checkpoint", choices=["best", "final"], default=None)
+    p.add_argument("--checkpoint", choices=["best", "final", "pretrained"], default=None)
     args = p.parse_args()
 
     cfg = load_config(args.run / "config_resolved.yaml")
