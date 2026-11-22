@@ -7,6 +7,7 @@ A sweep file (configs/sweeps/*.yaml) lists the base config, the seeds and the gr
     seeds: [0, 1, 2]
     max_parallel: 10                 # runs at the same time (each uses ~17 CPU processes)
     evaluate: {p_early: [0, 0.05, 0.1, 0.2], trajectories: true}
+    cleanup_wandb: true              # optional: delete local wandb copies once uploaded
     grid:                            # every combination of one option per dimension
       agent:
         - {label: trusting, set: {agent: PPO-Trusting, env.departures: null}}
@@ -161,6 +162,24 @@ def run_job(sweep_file: str, variant: str, seed: int, results_dir: Path) -> None
         if ev.get("trajectories"):
             cmd.append("--trajectories")
         subprocess.run(cmd, check=True, cwd=REPO_ROOT)
+    if spec.get("cleanup_wandb") and run is not None:
+        remove_synced_wandb(run)
+
+
+def remove_synced_wandb(run: Path) -> None:
+    """Delete the run's local wandb copy (~100 MB) once it is on the wandb server.
+
+    Only when wandb ran ONLINE (then run.finish() has uploaded everything); in
+    offline/disabled mode the local copy is the only one and is kept. Disk is limited.
+    """
+    import shutil
+
+    cfg = yaml.safe_load((run / "config_resolved.yaml").read_text())
+    mode = os.environ.get("WANDB_MODE") or (cfg.get("logging") or {}).get("wandb", "online")
+    if mode != "online":
+        return
+    for folder in (run / "wandb", run / "eval" / "wandb"):
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 def prepare_teacher_data(spec: dict, jobs: list[dict]) -> None:
