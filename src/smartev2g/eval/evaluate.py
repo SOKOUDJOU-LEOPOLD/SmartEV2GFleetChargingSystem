@@ -15,7 +15,7 @@ import pandas as pd
 import yaml
 
 from smartev2g.envs.make_env import make_env, resolve_path
-from smartev2g.eval.metrics import TradeTracker, episode_row, ev_rows
+from smartev2g.eval.metrics import TradeTracker, TrajectoryRecorder, episode_row, ev_rows
 
 
 class Policy(Protocol):
@@ -91,8 +91,10 @@ def scenario_seeds(split: str, scenarios_path: str | Path = "configs/eval/scenar
     return list(range(spec["start"], spec["start"] + spec["count"]))
 
 
-def run_episode(policy: Policy, env, seed: int):
+def run_episode(policy: Policy, env, seed: int, recorder: TrajectoryRecorder | None = None):
     """Play one simulated day; return (episode summary row, per-car rows).
+
+    `recorder` (optional) also keeps a per-step row for every plugged-in car.
 
     `env.reset(seed)` rebuilds the whole day (date, cars, prices), so one env can
     be reused for many days: a reused env gives exactly the same day as a fresh
@@ -102,11 +104,17 @@ def run_episode(policy: Policy, env, seed: int):
     policy.reset(seed)
     total, done, info = 0.0, False, {}
     trades = TradeTracker()  # price timing of charging/discharging (eval/metrics.py)
+    if recorder is not None:
+        recorder.start_day(seed)
     while not done:
         action = policy.act(obs, env)
         trades.before_step(env)
+        if recorder is not None:
+            recorder.before_step(env, np.asarray(action))
         obs, reward, terminated, truncated, info = env.step(action)
         trades.after_step()
+        if recorder is not None:
+            recorder.after_step()
         total += reward
         done = terminated or truncated
     evs = ev_rows(env, seed)
@@ -119,13 +127,19 @@ def run_episode(policy: Policy, env, seed: int):
 
 
 def evaluate_policy(
-    policy: Policy, seeds: list[int], env_kwargs: dict[str, Any] | None = None
+    policy: Policy,
+    seeds: list[int],
+    env_kwargs: dict[str, Any] | None = None,
+    recorder: TrajectoryRecorder | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Run `policy` on every seed. Returns (episodes table, cars table)."""
+    """Run `policy` on every seed. Returns (episodes table, cars table).
+
+    With a `recorder`, its rows (per car per step) are collected too: pd.DataFrame(recorder.rows).
+    """
     env = make_env(seed=seeds[0], **(env_kwargs or {}))
     episodes, cars = [], []
     for seed in seeds:
-        ep, evs = run_episode(policy, env, seed)
+        ep, evs = run_episode(policy, env, seed, recorder)
         episodes.append(ep)
         cars += evs
     episodes_df = pd.DataFrame(episodes)

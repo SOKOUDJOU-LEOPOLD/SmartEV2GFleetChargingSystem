@@ -10,6 +10,7 @@ Usage:
 Saved in results/<run_id>/eval/: <split>_p<p>_episodes.csv, <split>_p<p>_evs.csv,
 summary.csv (one row per world) and run_info.json; also logged to wandb.
 (--checkpoint final / pretrained: saved in eval_final/ / eval_pretrained/ instead.)
+--trajectories also saves every car's state per step, for the hedging analysis.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import pandas as pd
 
 from smartev2g.agents.train import env_kwargs, load_config, load_trained_policy
 from smartev2g.eval.evaluate import evaluate_policy, scenario_seeds, world_config
+from smartev2g.eval.metrics import TrajectoryRecorder
 from smartev2g.utils.logging import init_wandb
 from smartev2g.utils.run_info import RunInfo
 
@@ -45,6 +47,11 @@ def main() -> None:
     p.add_argument("--p-early", type=float, nargs="+", default=[0.0, 0.05, 0.1, 0.2])
     p.add_argument("--split", choices=["validation", "test"], default="test")
     p.add_argument("--checkpoint", choices=["best", "final", "pretrained"], default=None)
+    p.add_argument(
+        "--trajectories",
+        action="store_true",
+        help="also save every car's state per step (<split>_p<p>_trajectories.csv.gz)",
+    )
     args = p.parse_args()
 
     cfg = load_config(args.run / "config_resolved.yaml")
@@ -64,8 +71,11 @@ def main() -> None:
     rows, tables = [], {}
     for p_early in args.p_early:
         world = world_config(cfg, p_early)
-        episodes, cars = evaluate_policy(policy, seeds, env_kwargs(world))
+        recorder = TrajectoryRecorder() if args.trajectories else None
+        episodes, cars = evaluate_policy(policy, seeds, env_kwargs(world), recorder)
         tag = f"{args.split}_p{p_early:g}"
+        if recorder is not None:
+            pd.DataFrame(recorder.rows).to_csv(out / f"{tag}_trajectories.csv.gz", index=False)
         episodes.to_csv(out / f"{tag}_episodes.csv", index=False)
         cars.to_csv(out / f"{tag}_evs.csv", index=False)
         tables[tag] = episodes

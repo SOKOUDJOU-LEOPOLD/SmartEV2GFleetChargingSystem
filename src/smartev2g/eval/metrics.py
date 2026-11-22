@@ -167,3 +167,66 @@ class TradeTracker:
             if self.switches
             else np.nan,
         }
+
+
+class TrajectoryRecorder:
+    """Per-step "flight recorder" of every plugged-in car (test_trajectories.csv).
+
+    One row per car per step: battery level before/after, the action, the price, time
+    left until the ANNOUNCED departure (what the agent knows) and the REAL one, and
+    whether the car will leave early. Used for the hedging analysis (eval/hedging.py,
+    proposal Deliverable 1 item 7): does the agent keep more charge as a car's
+    departure gets close? Call `before_step(env, action)` / `after_step()` around
+    env.step; one recorder can collect many days.
+    """
+
+    def __init__(self) -> None:
+        self.rows: list[dict[str, Any]] = []
+        self._pending: list = []
+        self.seed: int | None = None
+
+    def start_day(self, seed: int) -> None:
+        self.seed = seed
+
+    def before_step(self, env, action: np.ndarray) -> None:
+        base = env.unwrapped
+        t = base.current_step
+        plan = getattr(base, "departure_plan", {}) or {}
+        self._pending = []
+        port = 0
+        for cs in base.charging_stations:
+            for ev in cs.evs_connected:
+                if ev is not None:
+                    key = (ev.location, ev.time_of_arrival)
+                    announced, real = plan.get(key, (ev.time_of_departure, ev.time_of_departure))
+                    row = {
+                        "seed": self.seed,
+                        "step": t,
+                        "port": port,
+                        "charger": ev.location,
+                        "arrival_step": ev.time_of_arrival,
+                        "announced_departure": announced,
+                        "real_departure": real,
+                        "early": key in plan,
+                        "steps_to_announced": announced - t,
+                        "steps_to_real": real - t,
+                        # 0 at arrival, 1 at the announced departure (common clock for all cars)
+                        "stay_fraction": (t - ev.time_of_arrival)
+                        / max(1, announced - ev.time_of_arrival),
+                        "battery_kwh": ev.battery_capacity,
+                        "soc_target": ev.desired_capacity / ev.battery_capacity,
+                        "soc_before": ev.current_capacity / ev.battery_capacity,
+                        "action": float(action[port]),
+                        "buy_price": abs(base.charge_prices[cs.id, t]),
+                        "sell_price": abs(base.discharge_prices[cs.id, t]),
+                    }
+                    self._pending.append((ev, row))
+                port += 1
+
+    def after_step(self) -> None:
+        for ev, row in self._pending:
+            row["soc_after"] = ev.current_capacity / ev.battery_capacity
+            row["energy_kwh"] = (row["soc_after"] - row["soc_before"]) * row["battery_kwh"]
+            row["margin"] = row["soc_after"] - row["soc_target"]  # + above target, − below
+            self.rows.append(row)
+        self._pending = []
