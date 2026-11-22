@@ -2,7 +2,7 @@
 
 **Goal:** build and *fully test* the core contribution: hidden early departures (POMDP) + the shared reward.
 
-**Status:** 🟡 In progress (reward done on `leopold/feat/p2-shortfall-reward`; shared per-charger policy tried (ADR-0004); central agent with per-charger credit next (ADR-0005)) · **Milestone tag:** `v0.2-wrapper`
+**Status:** ✅ Done (tag `v0.2-wrapper`). The learning PPO-Oracle moved to Phase 4 (the perfect-knowledge optimum already gives the "knows everything" ceiling). · **Milestone tag:** `v0.2-wrapper`
 
 ## Modelling assumptions (state these in the paper's method section)
 1. **Fleet setting.** The site serves a company **fleet**: the company owns the cars, pays for their electricity and keeps all V2G revenue. Drivers are employees who need enough charge when they leave; their interest enters the reward only through the departure (shortfall) penalty.
@@ -81,7 +81,7 @@
 - [x] λ_dep 1000 check (3 seeds): PPO-RiskAware (train p 0.2) hedges — sells less, pays ~1.8 €/day, early leavers reaching 80 % 39 % vs 31 %, better score in every risky world (gap ≈ 1 std; needs ≥ 5 seeds in Phase 4). Both PPO agents still score below AFAP-target (only ~half the cars reach 80 %) → perfect-knowledge optimum next
 
 ### Oracle (`src/smartev2g/envs/oracle_wrapper.py`)
-- [ ] Same hidden departures, but observation's time-to-departure uses `T_actual`
+- [ ] Same hidden departures, but observation's time-to-departure uses `T_actual` → **moved to Phase 4** (Optimum-real from `eval/optimum.py` is the exact ceiling meanwhile)
 
 ### Tests (`tests/`)
 - [x] `p_early = 0` ⇒ trajectories identical to unwrapped env (same seed)
@@ -89,7 +89,7 @@
 - [x] Early EV disconnects exactly at `T_actual`
 - [x] Penalty matches hand example: target 0.8, actual 0.5 ⇒ 0.3² = 0.09 (× λ)
 - [x] Empirical early fraction ≈ `p_early` over many EVs
-- [ ] Oracle observation shows `T_actual`
+- [ ] Oracle observation shows `T_actual` → **moved to Phase 4**
 
 ## Exit criteria
 - All tests pass; a short PPO run trains on the wrapped env without errors.

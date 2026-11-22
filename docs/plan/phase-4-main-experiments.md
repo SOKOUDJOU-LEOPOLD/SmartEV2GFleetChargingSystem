@@ -15,7 +15,7 @@
 - [ ] **Training grid** (configs in `configs/experiments/`):
   - PPO-Trusting: train `p_early = 0`
   - PPO-RiskAware (ours): train `p_early ∈ {0.05, 0.10, 0.20}`
-  - PPO-Oracle: train `p_early ∈ {0.05, 0.10, 0.20}`
+  - PPO-Oracle: train `p_early ∈ {0.05, 0.10, 0.20}` (observation shows the REAL departure; moved here from Phase 2 — needs a state function reading `env.departure_plan`)
   - × each λ_departure × seeds `{0..4}` (≥ 5)
 - [ ] **Test grid:** every trained agent + AFAP on test `p_early ∈ {0, 0.05, 0.10, 0.20}`, fixed held-out scenario seeds
 - [ ] Every run logged in `EXPERIMENT_LOG.md` (config, seed, commit, hardware, wall-clock) and in wandb
