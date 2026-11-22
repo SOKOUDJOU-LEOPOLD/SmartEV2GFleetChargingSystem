@@ -33,6 +33,7 @@
   - Trade-timing metrics in every evaluation: `avg_buy_price`, `avg_sell_price`, `trade_spread`, `switches_per_car`.
 - [x] **Imitation warm start (`agents/imitation.py`, `configs/experiments/p2_imitation_ppo.yaml`).** Teach PPO by example first: clone Optimum-announced (uses only what the agent sees: day-ahead prices + announced departures) on ~2,000 training days, pre-train the critic on the same days, then continue with PPO (setting B, day-ahead view). Same warm start for PPO-Trusting and PPO-RiskAware.
   **Results (3 seeds, EXPERIMENT_LOG 2026-11-22):** PPO now trades (spread 3.9–4.5 c vs 1.4 c, ~4 switches/car, positive money). Trusting test p 0: −9.7 (was −12.9). RiskAware hedges: early leavers reaching 80 % 59–61 % vs 51–53 %, sells 7–8 kWh/day less; on seeds 0–1 it beats Trusting at p 0.1 / 0.2 (−13.1 / −16.3 vs −13.8 / −18.9), but RiskAware seed 2 failed (−20 to −28), so the score comparison is open. Next: ≥ 5 seeds and a look at seed instability.
+- [x] **5-seed check with warm start (6M steps, 30 validation days; EXPERIMENT_LOG 2026-11-22).** RiskAware − Trusting: −0.8 / +0.7 / +1.9 / +3.2 at test p 0 / 0.05 / 0.1 / 0.2 (wins on 1 / 2 / 3 / 4 of 5 seeds): the predicted pattern (small cost without early departures, growing benefit with more), with clear hedging (early leavers at 80 %: ~56 % vs ~45 %), but not yet statistically significant (p 0.17 at test p 0.2). RiskAware beats AFAP-target in all four worlds.
 
 ## Branches
 | Branch | Content |
