@@ -20,6 +20,8 @@ Layout: [t, P_prev, price_0..19, then per port: soc, t_dep, steps_needed, laxity
 
 from __future__ import annotations
 
+import datetime
+
 import numpy as np
 
 # Number of future prices in the observation (fixed in EV2Gym's V2G_profit_max).
@@ -61,3 +63,42 @@ def V2G_profit_max_laxity(env, *args) -> np.ndarray:  # noqa: N802 (EV2Gym namin
                 needed = steps_to_target(ev, cs, env.timescale)
                 state.append(np.array([ev.get_soc(), t_dep, needed, t_dep - needed]))
     return np.hstack(state).astype(np.float64)
+
+
+# --- Day-ahead price view (after the PPO gap diagnosis, 2026-11-21) ---
+# Our prices are Dutch DAY-AHEAD prices: the market closes at 12:00 CET the day
+# before and publishes every price of the next day around 13:00. So a real operator
+# always knows all prices until midnight, and from 13:00 also tomorrow's prices.
+# EV2Gym's observation shows only the next 20 steps (5 h), shorter than a typical
+# stay (~8 h), so the agent cannot see e.g. the cheap midday valley or the evening
+# price when deciding in the morning.
+DAYAHEAD_HORIZON = 96  # price slots in the observation: 24 h of 15-min steps
+DAYAHEAD_PUBLISH_HOUR = 13  # tomorrow's prices are known from this hour on
+
+
+def known_price_steps(env, t: int) -> int:
+    """Last step (exclusive) whose day-ahead price is already published at step t."""
+    minutes = env.timescale
+    now = env.sim_starting_date + datetime.timedelta(minutes=t * minutes)
+    midnight = datetime.datetime.combine(now.date() + datetime.timedelta(days=1), datetime.time())
+    if now.hour >= DAYAHEAD_PUBLISH_HOUR:
+        midnight += datetime.timedelta(days=1)  # tomorrow's prices are out too
+    until = int((midnight - env.sim_starting_date).total_seconds() // (60 * minutes))
+    return min(until, env.simulation_length)
+
+
+def V2G_profit_max_laxity_dayahead(env, *args) -> np.ndarray:  # noqa: N802
+    """Like V2G_profit_max_laxity, but with every PUBLISHED price of the next 24 h.
+
+    Layout: [t, P_prev, price_0..95, n_known, then per port: soc, t_dep,
+    steps_needed, laxity] (20 ports -> 179 numbers). Prices not yet published (or
+    after the end of the simulated day) are 0; n_known says how many are real.
+    """
+    t = env.current_step
+    known = max(0, known_price_steps(env, t) - t)
+    n = min(known, DAYAHEAD_HORIZON)
+    prices = np.zeros(DAYAHEAD_HORIZON)
+    prices[:n] = np.abs(env.charge_prices[0, t : t + n])
+    base = V2G_profit_max_laxity(env)
+    head = 2 + PRICE_HORIZON  # [t, P_prev, 20 prices] in the laxity layout
+    return np.hstack([base[:2], prices, [n], base[head:]]).astype(np.float64)
