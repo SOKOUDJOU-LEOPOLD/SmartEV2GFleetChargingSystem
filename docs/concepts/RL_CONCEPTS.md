@@ -57,6 +57,8 @@
 
 **Oracle (privileged information) baseline.** An agent allowed to see the hidden information (true departure). It shows the best achievable result and how much of the gap our agent closes. [R6]
 
+**Perfect-knowledge optimum (hindsight plan).** Not an RL agent: a planner that is told the whole day in advance (prices, cars, real departures) and solves it exactly as one optimisation problem (a linear program; squares are approximated by many touching straight lines). Nobody can score higher on that day, so it is the ceiling every agent is measured against. A second version trusts the announced departures; the gap between the two is the most that knowing early departures can be worth. Code: `eval/optimum.py`. [R1], [R19]
+
 **Heuristic baseline (AFAP).** A fixed hand-written rule: charge every car as fast as possible. Very safe for drivers, but ignores prices and V2G. [R1]
 
 **Hedging.** Playing it safe against a risk you cannot see — here, keeping extra charge or selling less energy to the grid as the announced departure gets close.
@@ -107,5 +109,6 @@
 | R16 | J. Tobin et al., "Domain Randomization for Transferring Deep Neural Networks from Simulation to the Real World," IROS 2017. |
 | R17 | SB3-Contrib RecurrentPPO docs: https://sb3-contrib.readthedocs.io/en/master/modules/ppo_recurrent.html |
 | R18 | C. Yu et al., "The Surprising Effectiveness of PPO in Cooperative Multi-Agent Games," NeurIPS 2022 (Datasets and Benchmarks). arXiv:2103.01955 |
+| R19 | Q. Huangfu, J. A. J. Hall, "Parallelizing the dual revised simplex method," Mathematical Programming Computation, 2018 (the HiGHS solver, used through SciPy `linprog(method="highs")`). https://highs.dev |
 
 R1–R10 match the numbering of the [literature review](../proposal/Literature_Review.md).

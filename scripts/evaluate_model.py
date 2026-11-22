@@ -14,13 +14,12 @@ summary.csv (one row per world) and run_info.json; also logged to wandb.
 from __future__ import annotations
 
 import argparse
-import copy
 from pathlib import Path
 
 import pandas as pd
 
 from smartev2g.agents.train import env_kwargs, load_config, load_trained_policy
-from smartev2g.eval.evaluate import evaluate_policy, scenario_seeds
+from smartev2g.eval.evaluate import evaluate_policy, scenario_seeds, world_config
 from smartev2g.utils.logging import init_wandb
 from smartev2g.utils.run_info import RunInfo
 
@@ -37,18 +36,6 @@ SUMMARY_COLUMNS = [
     "total_energy_discharged",
     "total_transformer_overload",
 ]
-
-
-def world_config(cfg: dict, p_early: float) -> dict:
-    """The run's config with a different early-departure rate (same cut range)."""
-    world = copy.deepcopy(cfg)
-    base = cfg["env"].get("departures") or {}
-    world["env"]["departures"] = {
-        "p_early": p_early,
-        "cut_min": base.get("cut_min", 0.1),
-        "cut_max": base.get("cut_max", 0.5),
-    }
-    return world
 
 
 def main() -> None:

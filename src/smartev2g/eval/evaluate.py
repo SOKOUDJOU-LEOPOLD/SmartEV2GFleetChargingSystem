@@ -6,6 +6,7 @@ so every agent is measured in exactly the same way on exactly the same days.
 
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -128,3 +129,15 @@ def evaluate_policy(
     if len(cars_df):
         cars_df.insert(0, "policy", policy.name)
     return episodes_df, cars_df
+
+
+def world_config(cfg: dict, p_early: float) -> dict:
+    """The run's config with a different early-departure rate (same cut range)."""
+    world = copy.deepcopy(cfg)
+    base = cfg["env"].get("departures") or {}
+    world["env"]["departures"] = {
+        "p_early": p_early,
+        "cut_min": base.get("cut_min", 0.1),
+        "cut_max": base.get("cut_max", 0.5),
+    }
+    return world

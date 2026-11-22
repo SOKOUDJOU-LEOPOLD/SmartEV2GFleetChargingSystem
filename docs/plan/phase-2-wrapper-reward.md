@@ -12,7 +12,7 @@
 5. **Transformer** limit ±100 kW, no other loads or solar on it (config); overload is penalised (λ_over), not prevented.
 
 ## Open decisions (decide before the departure-wrapper experiments)
-- [ ] **Charging target per driver.** Today every simulated driver wants 100 % (`desired_capacity: 1` in the EV2Gym config is one global value), which leaves no battery room for V2G: even a perfect-knowledge plan beats AFAP by only ~3.4 €/day (7 %) on the test days. Options: (a) keep 100 %; (b) 80 % for everyone (the proposal's example); (c) **each driver gets their own target when they plug in** (e.g. drawn from 60–100 %, later from ACN-Data user requests in Phase 6) — closest to reality, set by the same wrapper as hidden departures. Laxity already uses each car's own target.
+- [ ] **Charging target per driver.** Today every simulated driver wants 100 % (`desired_capacity: 1` in the EV2Gym config is one global value), which leaves no battery room for V2G: even a perfect-knowledge plan beats AFAP by only ~3.4 €/day (7 %) on the test days *(corrected later: ≈ 14 €/day, see ADR-0006)*. Options: (a) keep 100 %; (b) 80 % for everyone (the proposal's example); (c) **each driver gets their own target when they plug in** (e.g. drawn from 60–100 %, later from ACN-Data user requests in Phase 6) — closest to reality, set by the same wrapper as hidden departures. Laxity already uses each car's own target.
 - [x] **First λ_dep calibration (80 % target, PPO-Trusting, 1 seed, 3M steps; EXPERIMENT_LOG):**
 
   | λ_dep | Money €/day | Mean SoC at departure | Cars within 5 % of target | within 10 % |
@@ -25,7 +25,8 @@
 
   **Decided (Leopold, 2026-11-21):** λ_dep ∈ {200, 500, 1000} for the main grid, **500 as development default** (λ = 1000 = "drivers first" setting in the paper) (most drivers within 5 % of target, saves ~9 €/day vs AFAP-target). Confirm over ≥ 5 seeds in Phase 4.
 - [ ] **λ values (remaining).** No study gives a "true" λ_dep: sweep several values and report profit-vs-shortfall trade-off curves (Literature Review, refinement 1), choose the range so PPO-Trusting satisfies most drivers without early departures (Phase 4); optionally anchor λ in euros via the cost of getting the missing energy elsewhere (e.g. public charging price, to be looked up).
-- [ ] **Perfect-knowledge reference.** Add the per-day optimum with perfect knowledge of prices and departures (linear/quadratic program) as an upper bound, so results can be reported as "% of the gap between AFAP and the best possible closed".
+- [x] **Perfect-knowledge reference.** Add the per-day optimum with perfect knowledge of prices and departures (linear/quadratic program) as an upper bound, so results can be reported as "% of the gap between AFAP and the best possible closed".
+  **Done:** `eval/optimum.py` (`plan_day`, `PerfectPlanPolicy`; LP with HiGHS, squares as tangent cuts, EV2Gym battery maths checked against the simulator) + `scripts/evaluate_optimum.py`. Two versions: Optimum-real (knows real departures = ceiling) and Optimum-announced (trusts announced ones). λ 500, test p 0.1: AFAP-target −15.1, Optimum-announced +2.4, Optimum-real +11.0; PPO agents ≈ −15. Optional later: Optimum-risk (knows the risk, not which car) = the best possible hedger.
 
 ## Branches
 | Branch | Content |
