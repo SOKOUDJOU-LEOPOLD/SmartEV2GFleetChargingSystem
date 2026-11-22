@@ -59,6 +59,8 @@
 
 **Perfect-knowledge optimum (hindsight plan).** Not an RL agent: a planner that is told the whole day in advance (prices, cars, real departures) and solves it exactly as one optimisation problem (a linear program; squares are approximated by many touching straight lines). Nobody can score higher on that day, so it is the ceiling every agent is measured against. A second version trusts the announced departures; the gap between the two is the most that knowing early departures can be worth. Code: `eval/optimum.py`. [R1], [R19]
 
+**Imitation warm start (behaviour cloning, then RL).** Before learning by trial and error, the agent first copies a teacher: it is shown many situations and the teacher's action in each, and learns to reproduce them (behaviour cloning). Its critic also learns how good each situation was on the teacher's days. Then normal PPO training continues from that starting point. Copying alone tends to drift: small errors add up and the copy never saw how to recover from them, so the RL phase is still needed. Our teacher is the perfect plan that trusts announced departures; code: `agents/imitation.py`. [R20], [R21]
+
 **Heuristic baseline (AFAP).** A fixed hand-written rule: charge every car as fast as possible. Very safe for drivers, but ignores prices and V2G. [R1]
 
 **Hedging.** Playing it safe against a risk you cannot see — here, keeping extra charge or selling less energy to the grid as the announced departure gets close.
@@ -110,5 +112,7 @@
 | R17 | SB3-Contrib RecurrentPPO docs: https://sb3-contrib.readthedocs.io/en/master/modules/ppo_recurrent.html |
 | R18 | C. Yu et al., "The Surprising Effectiveness of PPO in Cooperative Multi-Agent Games," NeurIPS 2022 (Datasets and Benchmarks). arXiv:2103.01955 |
 | R19 | Q. Huangfu, J. A. J. Hall, "Parallelizing the dual revised simplex method," Mathematical Programming Computation, 2018 (the HiGHS solver, used through SciPy `linprog(method="highs")`). https://highs.dev |
+| R20 | D. A. Pomerleau, "Efficient Training of Artificial Neural Networks for Autonomous Navigation," Neural Computation, 1991 (behaviour cloning). |
+| R21 | A. Rajeswaran et al., "Learning Complex Dexterous Manipulation with Deep Reinforcement Learning and Demonstrations," RSS 2018 (pre-train on demonstrations, then policy-gradient RL). arXiv:1709.10087 |
 
 R1–R10 match the numbering of the [literature review](../proposal/Literature_Review.md).

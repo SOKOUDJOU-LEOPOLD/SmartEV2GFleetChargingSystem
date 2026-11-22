@@ -20,7 +20,7 @@ Three steps (`warm_start`):
 3. pre-train: the actor learns to output the teacher's action (mean squared error);
    the critic learns how good each situation was on the teacher's days (discounted
    sum of the normalised rewards). Without this, the critic's first wrong guesses
-   would push PPO away from what it just copied. Ref: [R8], [R20]
+   would push PPO away from what it just copied. Ref: [R8], [R21]
 """
 
 from __future__ import annotations

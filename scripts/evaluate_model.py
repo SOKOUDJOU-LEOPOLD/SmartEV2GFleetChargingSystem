@@ -9,6 +9,7 @@ Usage:
 
 Saved in results/<run_id>/eval/: <split>_p<p>_episodes.csv, <split>_p<p>_evs.csv,
 summary.csv (one row per world) and run_info.json; also logged to wandb.
+(--checkpoint final / pretrained: saved in eval_final/ / eval_pretrained/ instead.)
 """
 
 from __future__ import annotations
@@ -48,7 +49,8 @@ def main() -> None:
 
     cfg = load_config(args.run / "config_resolved.yaml")
     seeds = scenario_seeds(args.split, cfg["scenarios"])
-    out = args.run / "eval"
+    # Default (best) -> eval/; another checkpoint gets its own folder (eval_final/, ...).
+    out = args.run / ("eval" if args.checkpoint in (None, "best") else f"eval_{args.checkpoint}")
     out.mkdir(exist_ok=True)
     info = RunInfo(
         out,
@@ -83,7 +85,7 @@ def main() -> None:
 
     run = init_wandb(
         cfg,
-        run_id=f"{args.run.name}_eval",
+        run_id=f"{args.run.name}_{out.name}",
         run_dir=out,
         group=cfg["name"],
         tags=[cfg["agent"], "cross-eval"],
