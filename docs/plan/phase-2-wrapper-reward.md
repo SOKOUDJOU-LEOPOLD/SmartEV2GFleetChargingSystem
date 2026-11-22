@@ -31,7 +31,8 @@
   - Calmer PPO updates (setting B: lr 1e-4, n_epochs 5, batch 2048; `target_kl` now in the config, off by default): healthy training, +1–2 points.
   - Day-ahead price view (`V2G_profit_max_laxity_dayahead`: all published prices of the next 24 h, tomorrow's from 13:00): 3× better spread, fewer flips, more cars served, same score.
   - Trade-timing metrics in every evaluation: `avg_buy_price`, `avg_sell_price`, `trade_spread`, `switches_per_car`.
-- [ ] **Imitation warm start (next, `feat/p2-imitation-warmstart`).** Teach PPO by example first: clone Optimum-announced (uses only what the agent sees: day-ahead prices + announced departures) on ~2,000 training days, pre-train the critic on the same days, then continue with PPO (setting B, day-ahead view). Same warm start for PPO-Trusting and PPO-RiskAware.
+- [x] **Imitation warm start (`agents/imitation.py`, `configs/experiments/p2_imitation_ppo.yaml`).** Teach PPO by example first: clone Optimum-announced (uses only what the agent sees: day-ahead prices + announced departures) on ~2,000 training days, pre-train the critic on the same days, then continue with PPO (setting B, day-ahead view). Same warm start for PPO-Trusting and PPO-RiskAware.
+  **Results (3 seeds, EXPERIMENT_LOG 2026-11-22):** PPO now trades (spread 3.9–4.5 c vs 1.4 c, ~4 switches/car, positive money). Trusting test p 0: −9.7 (was −12.9). RiskAware hedges: early leavers reaching 80 % 59–61 % vs 51–53 %, sells 7–8 kWh/day less; on seeds 0–1 it beats Trusting at p 0.1 / 0.2 (−13.1 / −16.3 vs −13.8 / −18.9), but RiskAware seed 2 failed (−20 to −28), so the score comparison is open. Next: ≥ 5 seeds and a look at seed instability.
 
 ## Branches
 | Branch | Content |

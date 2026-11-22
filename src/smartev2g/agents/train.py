@@ -39,6 +39,7 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNorm
 
 from smartev2g.agents.callbacks import EpisodeMetricsCallback, ValidationCallback
 from smartev2g.agents.credit_ppo import CreditPPO
+from smartev2g.agents.imitation import collect_expert_data, pretrain_policy
 from smartev2g.envs.charger_env import (
     ChargerVecEnv,
     SiteChargerEnv,
@@ -289,6 +290,14 @@ def train(
     if resume_dir is not None and ckpt is None:
         raise FileNotFoundError(f"No checkpoint to resume from in {run_dir / 'checkpoints'}")
     restart = len(list(run_dir.glob("train_progress*.csv"))) if ckpt is not None else 0
+    # Imitation warm start (agents/imitation.py): the teacher's days are collected
+    # BEFORE the simulator processes start (fresh runs only; a resumed run already has it).
+    pre = cfg.get("pretrain") if ckpt is None else None
+    expert = None
+    if pre:
+        expert = collect_expert_data(
+            env_kwargs(cfg), pre["days"], pre["first_day"], workers=pre.get("workers", 16)
+        )
     venv = make_training_env(cfg, seed, t["n_envs"], restart)
 
     if ckpt is not None:
@@ -300,6 +309,26 @@ def train(
         model = algorithm(design)(
             "MlpPolicy", venv, seed=seed, device=t["device"], verbose=0, **cfg["ppo"], **extra
         )
+    if expert is not None:
+        history = pretrain_policy(
+            model,
+            venv,
+            expert,
+            epochs=pre["epochs"],
+            batch_size=pre["batch_size"],
+            learning_rate=pre["learning_rate"],
+            log_std=pre.get("log_std"),
+            train_critic=pre.get("critic", True),
+            seed=seed,
+        )
+        pd.DataFrame(history).to_csv(run_dir / "pretrain.csv", index=False)
+        model.save(run_dir / "pretrained_model.zip")  # the copied agent, before any PPO
+        venv.save(str(run_dir / "pretrained_vecnormalize.pkl"))
+        info.data["pretrain"] = {
+            "samples": int(len(expert["obs"])),
+            "teacher_seconds": float(expert["seconds"]),
+            "final": history[-1],
+        }
     # PPO(seed=...) also re-seeds the envs with seed, seed+1, ... (SB3 set_random_seed),
     # which would make training seeds 0 and 1 replay almost the same days. Restore our
     # day seeds; they take effect at the first reset, inside learn().
@@ -380,7 +409,8 @@ def train(
 def load_trained_policy(cfg: dict[str, Any], run_dir: Path, checkpoint: str | None = None):
     """The trained agent of a run, ready to evaluate: (policy, checkpoint name).
 
-    checkpoint: "best" (chosen on validation days) or "final"; default: best if saved.
+    checkpoint: "best" (chosen on validation days), "final", or "pretrained" (after the
+    imitation warm start, before any PPO); default: best if saved.
     """
     name = checkpoint or ("best" if (run_dir / "best_model.zip").exists() else "final")
     design = agent_design(cfg)
