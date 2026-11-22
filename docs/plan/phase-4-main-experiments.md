@@ -2,7 +2,7 @@
 
 **Goal:** run the full experiment grid of Deliverable 1.
 
-**Status:** ⚪ Not started
+**Status:** ⚪ Not started. Every run uses the frozen setup of ADR-0007 (`configs/experiments/p4_main.yaml`, PPO with imitation warm start) and is launched with `scripts/sweep.py` (a sweep file in `configs/sweeps/`); figures and tables with `scripts/make_figures.py`.
 
 ## Branches
 | Branch | Content |
