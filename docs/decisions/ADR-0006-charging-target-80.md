@@ -9,6 +9,8 @@ EV2Gym's example config makes every simulated driver want a **full** battery (`d
 
 It also leaves almost no room for the trade-off we study: with a 100 % target, even a perfect-knowledge plan (all prices known, V2G allowed, every car full) beats AFAP by only ~3.4 €/day (7 %) on the test days (Phase 2 plan, "Open decisions").
 
+*Correction (2026-11-21):* that ~3.4 €/day came from a rough one-car-at-a-time estimate that wrongly charged money for charging losses (EV2Gym bills only the energy that enters or leaves the battery). The official planner (`eval/optimum.py`, tested against the simulator) gives −32.1 vs AFAP −46.0 €/day at 100 % (≈ 14 €/day better, λ_dep 500, 50 test days). The decision below still stands: the main reason for 80 % is realism, and 80 % leaves more room for V2G.
+
 ## Decision
 1. **Every driver's target is 80 % of their battery** (`env.charging_target: 0.8` in experiment configs) for Deliverable 1. 100 % is run as a **sensitivity check** (`--set env.charging_target=1.0`).
 2. **How:** the EV2Gym config keeps `desired_capacity: 1`; `ProjectEV2Gym` (`envs/make_env.py`; first called `TargetEV2Gym`) sets each car's target to 0.8 × battery right after `reset()` builds the day's car list, before any car arrives.
