@@ -44,6 +44,7 @@ ppo:
   gamma: 0.99 # how much future rewards count (0.99 ~ looks ~100 steps ahead)
   gae_lambda: 0.95 # GAE smoothing of advantages. Ref: [R12]
   clip_range: 0.2 # PPO clipping: limits how much the policy changes per update. Ref: [R8]
+  target_kl: null # optional brake: stop an update early once the policy changed this much (KL); null = off (SB3 default). Ref: [R13]
   ent_coef: 0.0 # bonus for exploring (randomness); 0 = SB3 default
   vf_coef: 0.5
   max_grad_norm: 0.5
