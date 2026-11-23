@@ -209,3 +209,46 @@ def plot_learning(
         "OWN training world: compare agents on the train/test grid, not here.",
         bottom,
     )
+
+
+def plot_tradeoff(points: pd.DataFrame, agents: list[str], p_early: float, path: Path,
+                  refs: pd.DataFrame | None = None) -> None:  # fmt: skip
+    """Money-vs-safety curve: one line per agent through its λ_dep points.
+
+    x = money per day (right = cheaper), y = % of early leavers below 70 % (down = safer),
+    so the best corner is bottom-right. Error bars: 95 % CI over seeds. Grey references:
+    AFAP-target (one point, it ignores λ) and the optimum planners at each λ."""
+    _check_agents(agents)
+    fig, ax = plt.subplots(figsize=(7.5, 5.2))
+    for i, agent in enumerate(agents):
+        g = points[points["agent"] == agent].sort_values("lambda_dep")
+        color = SERIES_COLORS[i]
+        ax.errorbar(g["money_mean"], g["below70_mean"], xerr=g["money_ci95"],
+                    yerr=g["below70_ci95"], color=color, lw=2, marker="o", ms=7,
+                    elinewidth=1, capsize=3, label=agent, zorder=3)  # fmt: skip
+        for _, r in g.iterrows():  # λ next to each point: which penalty bought this point
+            ax.annotate(f"λ {r['lambda_dep']:g}", (r["money_mean"], r["below70_mean"]),
+                        xytext=(8, -12), textcoords="offset points",
+                        fontsize=7, color=TEXT_2)  # fmt: skip
+    if refs is not None:
+        for style, policy in zip(
+            REFERENCE_STYLES[:2], ("Optimum-real", "Optimum-announced"), strict=True
+        ):
+            g = refs[refs["policy"] == policy].sort_values("lambda_dep")
+            if len(g):
+                ax.plot(g["money"], g["below70"], ls=style, color=MUTED, marker="s", ms=5,
+                        lw=1.2, label=f"{policy} (perfect planner)")  # fmt: skip
+        afap = refs[refs["policy"] == "AFAP-target"]
+        if len(afap):
+            ax.plot(afap["money"].mean(), afap["below70"].mean(), ls="none", marker="D", ms=7,
+                    color=TEXT_2, label="AFAP-target (rule)")  # fmt: skip
+    ax.annotate("better", xy=(0.97, 0.3), xytext=(0.84, 0.45), xycoords="axes fraction",
+                fontsize=8, color=TEXT_2,
+                arrowprops={"arrowstyle": "->", "color": TEXT_2})  # fmt: skip
+    ax.set_ylabel("Early leavers driving off below 70 % (%)", fontsize=8, color=TEXT_2)
+    ax.grid(axis="x", color=GRID, lw=0.8)
+    _style(ax, f"Test world: {p_early:.0%} of drivers leave early without warning",
+           "Money per day (€, higher = cheaper charging)")  # fmt: skip
+    ax.legend(frameon=False, fontsize=8, loc="upper left", labelcolor=TEXT)
+    _save(fig, path, "Money vs driver protection across penalty weights λ_dep "
+                     "(mean over seeds, bars = 95 % CI)")  # fmt: skip

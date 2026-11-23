@@ -21,7 +21,7 @@
 | Final test, per EV | arrival, announced vs. true departure, early yes/no, target vs. final SoC, shortfall, energy charged / discharged | `test_evs.csv` | shortfall distributions, % meeting target |
 | Final test, per time step (sampled episodes) | per-charger SoC, action, price, total power, time-to-announced-departure | `test_trajectories.csv` | **hedging plots** |
 | Once per run | resolved config, seed, git commit, library versions, CPU/GPU model, start/end time, wall-clock | `run_info.json` + one line in [`EXPERIMENT_LOG.md`](../experiments/EXPERIMENT_LOG.md) | reproducibility; compute section of the paper |
-| Aggregation over runs | mean ± 95% CI over seeds (`summary.csv`); every agent − the first agent paired by seed, with wins, t-test and Holm-corrected p (`paired.csv`); battery level when cars leave: all cars, early leavers, worst 10 % of early leavers, % of early leavers below 70 % (`drivers.csv`) | `reports/<experiment>/` (**committed**) | final tables & figures |
+| Aggregation over runs | mean ± 95% CI over seeds (`summary.csv`); every agent − the first agent paired by seed, with wins, t-test and Holm-corrected p (`paired.csv`); battery level when cars leave: all cars, early leavers, worst 10 % of early leavers, % of early leavers below 70 % (`drivers.csv`); money-vs-safety curve across λ with Welch + Holm dominance tests (`tradeoff.csv`, `dominance.csv`, `scripts/make_tradeoff.py`) | `reports/<experiment>/` (**committed**) | final tables & figures |
 
 ## Proposal §11 evaluation metrics (must all appear in `test_episodes.csv`)
 - % of unexpected departures meeting target SoC
