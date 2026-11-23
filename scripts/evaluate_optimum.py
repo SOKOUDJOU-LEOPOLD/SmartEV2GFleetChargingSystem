@@ -69,6 +69,8 @@ def main() -> None:
     lam = cfg["env"]["reward_kwargs"]
     seeds = scenario_seeds(args.split, cfg["scenarios"])
     tag = f"lamdep{lam['lambda_dep']:g}"
+    if cfg["env"].get("arrival_rule"):  # ADR-0008: keep apart from the "ev2gym" references
+        tag += f"-arrival{cfg['env']['arrival_rule']}"
     run_dir = make_run_dir(make_run_id(f"optimum-{args.split}-{tag}"), root=args.results_dir)
     info = RunInfo(run_dir, "scripts/evaluate_optimum.py", args.config, seeds, vars(args))
     info.data["resolved_config"] = cfg

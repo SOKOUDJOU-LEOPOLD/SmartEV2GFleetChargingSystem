@@ -126,8 +126,11 @@ def load_env_config(config_path: str | Path = DEFAULT_ENV_CONFIG) -> dict:
 DEPARTURE_RNG_STREAM = 20261121
 
 
+ARRIVAL_RULES = ("ev2gym", "target")
+
+
 class ProjectEV2Gym(EV2Gym):
-    """EV2Gym with our two additions, both applied right after `reset()` builds the
+    """EV2Gym with our additions, all applied right after `reset()` builds the
     day's car list (`EVs_profiles`; arriving cars are copies of these):
 
     1. Charging target (ADR-0006): every driver wants `charging_target` × battery.
@@ -142,13 +145,27 @@ class ProjectEV2Gym(EV2Gym):
        in that step; the next observation no longer contains it, so the real time
        never appears in any observation. We also refresh `max_energy_AFAP`, which
        EV2Gym cached at plug-in from the announced time (ADR-0002).
+    3. Arrival charge (ADR-0008), `arrival_rule`:
+       - "ev2gym" (default): EV2Gym's rule, arrival = FULL battery − the energy the
+         driver takes (ElaadNL data). With an 80 % target, drivers then need only
+         ~5 points on average and 37 % arrive already above target.
+       - "target": arrival = TARGET − the energy the driver takes, so every driver
+         still adds exactly the kWh of the data; only the stopping point is the
+         target. Never below EV2Gym's minimum battery level (`min_battery_capacity`).
     """
 
-    def __init__(self, *args, charging_target=None, departure_model=None, **kwargs) -> None:
+    def __init__(
+        self, *args, charging_target=None, departure_model=None, arrival_rule="ev2gym", **kwargs
+    ) -> None:
         if charging_target is not None and not 0 < charging_target <= 1:
             raise ValueError("charging_target must be in (0, 1]")
+        if arrival_rule not in ARRIVAL_RULES:
+            raise ValueError(f"arrival_rule must be one of {ARRIVAL_RULES}")
+        if arrival_rule == "target" and charging_target is None:
+            raise ValueError('arrival_rule "target" needs a charging_target')
         # Set first: EV2Gym's __init__ already calls reset().
         self.charging_target = charging_target
+        self.arrival_rule = arrival_rule
         self.departure_model = departure_model
         self.departure_plan: dict[tuple[int, int], tuple[int, int]] = {}
         super().__init__(*args, **kwargs)
@@ -158,11 +175,25 @@ class ProjectEV2Gym(EV2Gym):
         """(charger, arrival step): unique per car in a day (one port per charger)."""
         return (ev.location, ev.time_of_arrival)
 
+    @staticmethod
+    def shift_arrival(ev, target: float) -> None:
+        """Arrival = target − the energy the driver takes (ADR-0008).
+
+        EV2Gym built the car as arrival = full − energy, so the energy is
+        `battery − arrival`; we keep it and move the arrival down by (1 − target) ×
+        battery. Arriving cars are copies made with `ev.reset()`, which restarts from
+        `battery_capacity_at_arrival`, so changing the profile is enough."""
+        shifted = ev.battery_capacity_at_arrival - (1 - target) * ev.battery_capacity
+        ev.battery_capacity_at_arrival = max(shifted, ev.min_battery_capacity)
+        ev.reset()  # current level and EV2Gym's required_energy follow the new arrival
+
     def reset(self, seed=None, options=None, **kwargs):
         _, info = super().reset(seed=seed, options=options, **kwargs)
         if self.charging_target is not None:
             for ev in self.EVs_profiles:
                 ev.desired_capacity = self.charging_target * ev.battery_capacity
+                if self.arrival_rule == "target":
+                    self.shift_arrival(ev, self.charging_target)
         # departure_plan: car -> (announced step, real step), only for early leavers.
         self.departure_plan = {}
         if self.departure_model is not None:
@@ -194,6 +225,7 @@ def make_env(
     reward_kwargs: dict | None = None,
     charging_target: float | None = None,
     departures: dict | None = None,
+    arrival_rule: str = "ev2gym",
     verbose: bool = False,
 ) -> EV2Gym:
     """Create an EV2Gym environment.
@@ -210,6 +242,8 @@ def make_env(
             (ADR-0006). None = the EV2Gym config's `desired_capacity` (1.0 = full).
         departures: hidden early departures, e.g. {"p_early": 0.1, "cut_min": 0.1,
             "cut_max": 0.5} (envs/departure_models.py). None = everyone leaves on time.
+        arrival_rule: "ev2gym" (arrival = full − the driver's energy) or "target"
+            (arrival = charging_target − the driver's energy; ADR-0008).
         verbose: print EV2Gym's step-by-step messages.
 
     Note:
@@ -226,11 +260,12 @@ def make_env(
         with os.fdopen(fd, "w") as f:
             yaml.safe_dump(load_env_config(config_path), f)
         env_class, extra = EV2Gym, {}
-        if charging_target is not None or departures:
+        if charging_target is not None or departures or arrival_rule != "ev2gym":
             env_class = ProjectEV2Gym
             extra = {
                 "charging_target": charging_target,
                 "departure_model": make_departure_model(departures),
+                "arrival_rule": arrival_rule,
             }
         return env_class(
             config_file=tmp,

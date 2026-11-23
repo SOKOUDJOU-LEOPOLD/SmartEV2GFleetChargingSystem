@@ -65,7 +65,7 @@ def load_config(path: str | Path) -> dict[str, Any]:
 def env_kwargs(cfg: dict[str, Any]) -> dict[str, Any]:
     """make_env arguments from the 'env' section of an experiment config."""
     e = cfg["env"]
-    return {
+    kwargs = {
         "config_path": e["config"],
         "state_function": e["state_function"],
         "reward_function": e["reward_function"],
@@ -73,6 +73,10 @@ def env_kwargs(cfg: dict[str, Any]) -> dict[str, Any]:
         "charging_target": e.get("charging_target"),  # e.g. 0.8 (ADR-0006); None = 100 %
         "departures": e.get("departures"),  # hidden early departures; None = all on time
     }
+    # Only when set, so configs without it keep their exact settings (and cache keys).
+    if e.get("arrival_rule"):
+        kwargs["arrival_rule"] = e["arrival_rule"]  # "target" = ADR-0008
+    return kwargs
 
 
 # Agent designs (see eval/evaluate.py POLICY_CLASSES):

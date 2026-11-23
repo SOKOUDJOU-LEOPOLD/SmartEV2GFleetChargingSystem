@@ -1,0 +1,70 @@
+# Phase 4 BASE config, version 2 (ADR-0008): identical to p4_main.yaml (frozen setup of
+# ADR-0007) except ONE line, env.arrival_rule: target. Cars now arrive at
+# "80 % − the energy the driver takes in the ElaadNL data" instead of
+# "100 % − that energy", so every driver needs the energy of the data (~25 points on
+# average instead of ~5). p4_main.yaml results = the "light charging need" case
+# (release v0.3-p4-light-charging). Do not edit after results exist.
+
+name: p4-arrival
+agent: PPO-Trusting
+agent_design: site # site | shared_charger | central_credit
+
+env:
+  config: configs/env/v2g_profitmax_20port.yaml
+  state_function: V2G_profit_max_laxity_dayahead # laxity per car + all published day-ahead prices (envs/state.py)
+  reward_function: squared_shortfall # profit − λ_over·overload² − λ_dep·shortfall² (rewards/shortfall_reward.py)
+  reward_kwargs:
+    lambda_dep: 500.0 # weight of Σ (target SoC − SoC at departure)², SoC 0..1; calibrated (Phase 2 plan): grid {200, 500, 1000}
+    lambda_over: 0.1 # weight of Σ (kW above transformer rating)²; 10 kW over ≈ one car 45 % short
+  charging_target: 0.8 # battery level every driver wants at departure (ADR-0006)
+  arrival_rule: target # arrival = target − the driver's energy from the data (ADR-0008)
+  departures: null # hidden early departures; null = everyone leaves on time (PPO-Trusting)
+
+scenarios: configs/eval/scenarios_val30.yaml # 30 validation days (ADR-0007)
+
+training:
+  total_timesteps: 6000000 # ~53,600 simulated days; runs still improved at 3M (ADR-0007)
+  n_envs: 16 # simulated days played in parallel (one CPU process each)
+  device: cpu # chosen by the CPU vs GPU timing test (scripts/timing_test.py)
+  torch_threads: 1 # CPU threads for the PPO update: 1 was fastest in the timing test (ADR-0003)
+  # VecNormalize: rescale observations (and rewards) to ~mean 0, std 1 so that
+  # prices (~0.1 EUR) and step numbers (0..112) are on similar scales. Ref: [R13]
+  normalize_obs: true
+  normalize_reward: true
+  eval_every_steps: 50000 # validation run + best-model checkpoint
+  checkpoint_every_steps: 100000 # resumable checkpoints (CODING_RULES §7)
+
+# PPO settings (Stable-Baselines3). Mostly SB3 defaults. Ref: [R8], [R13]
+ppo:
+  learning_rate: 0.0001 # setting B (PPO gap diagnosis): calmer updates
+  n_steps: 448 # steps per env before each update = 4 days; buffer = 448 x 16 = 7,168
+  batch_size: 2048 # setting B
+  n_epochs: 5 # setting B
+  gamma: 0.99 # how much future rewards count (0.99 ~ looks ~100 steps ahead)
+  gae_lambda: 0.95 # GAE smoothing of advantages. Ref: [R12]
+  clip_range: 0.2 # PPO clipping: limits how much the policy changes per update. Ref: [R8]
+  target_kl: null # optional brake: stop an update early once the policy changed this much (KL); null = off (SB3 default). Ref: [R13]
+  ent_coef: 0.0 # bonus for exploring (randomness); 0 = SB3 default
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  policy_kwargs:
+    net_arch: [256, 256] # two hidden layers of 256 (best size in the Phase 2 diagnostics)
+    # Starting randomness of actions: std = exp(log_std_init); 0 -> std 1 (SB3 default),
+    # -1 -> std 0.37 (less random at the start, so less accidental draining).
+    log_std_init: 0.0
+
+logging:
+  wandb: online # online | offline | disabled (WANDB_MODE env var overrides)
+  project: smartev2g # WANDB_PROJECT env var overrides
+
+# Imitation warm start (agents/imitation.py). Ref: [R20], [R21]
+pretrain:
+  expert: optimum-announced # the perfect plan that trusts announced departures
+  days: 2000 # teacher days (~224,000 examples); cached in results/expert_data/
+  first_day: 900000 # day seeds 900,000..: training range, never validation/test days
+  workers: 32 # processes for collecting the teacher's days
+  epochs: 60 # passes over the examples (error still falling at 30 in the smoke test)
+  batch_size: 4096
+  learning_rate: 0.001 # Adam, for this copying phase only
+  log_std: -1.0 # action randomness when PPO starts: std 0.37 (stay near the teacher)
+  critic: true # also teach the critic how good each situation was
