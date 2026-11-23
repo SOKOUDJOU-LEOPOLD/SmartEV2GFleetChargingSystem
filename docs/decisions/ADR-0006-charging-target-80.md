@@ -24,6 +24,7 @@ It also leaves almost no room for the trade-off we study: with a 100 % target, e
 
 ## Consequences
 - Cars arriving above 80 % (common: mean arrival level ≈ 0.74) need no charging and give real V2G room down to 80 %.
+  *Update (2026-11-22, ADR-0008):* this came from keeping EV2Gym's arrival rule (full − the driver's energy) with an 80 % target, which removed 20 % of each battery from the driver's real energy need. ADR-0008 sets arrival = 80 % − the driver's energy (mean arrival ≈ 0.55); results with the old rule are the "light charging need" case (release v0.3-p4-light-charging).
 - AFAP-target is a much stronger baseline: on 10 validation days it costs −13.4 €/day vs −38.3 €/day for AFAP, with no penalty. PPO must beat AFAP-target.
 - AFAP-target can end up to ~2.5 % above target (EV2Gym's real current/efficiency do not scale exactly with a partial action) — about 1 kWh, harmless for a baseline.
 - Earlier results (Phases 1–2, before this ADR) used 100 %; they stay valid as the 100 % case.
