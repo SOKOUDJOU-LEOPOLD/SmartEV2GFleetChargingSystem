@@ -40,13 +40,15 @@ from smartev2g.eval.optimum import PerfectPlanPolicy
 CACHE_DIR = REPO_ROOT / "results" / "expert_data"
 
 
-def _play_days(args: tuple[dict[str, Any], list[int]]) -> dict[str, np.ndarray]:
+# Config value `pretrain.expert` -> what the teacher plan knows (eval/optimum.py).
+EXPERTS = {"optimum-announced": "announced", "optimum-real": "real"}
+
+
+def _play_days(args: tuple[dict[str, Any], list[int], str]) -> dict[str, np.ndarray]:
     """Teacher plays these days (runs in a worker process)."""
-    kwargs, days = args
+    kwargs, days, knows = args
     lam = kwargs.get("reward_kwargs") or {}
-    teacher = PerfectPlanPolicy(
-        "announced", lam.get("lambda_dep", 500.0), lam.get("lambda_over", 0.1)
-    )
+    teacher = PerfectPlanPolicy(knows, lam.get("lambda_dep", 500.0), lam.get("lambda_over", 0.1))
     env = make_env(seed=days[0], **kwargs)
     obs_l, act_l, rew_l, day_l = [], [], [], []
     for day in days:
@@ -70,10 +72,22 @@ def _play_days(args: tuple[dict[str, Any], list[int]]) -> dict[str, np.ndarray]:
 
 
 def collect_expert_data(
-    env_kwargs: dict[str, Any], days: int, first_day: int, workers: int = 16
+    env_kwargs: dict[str, Any],
+    days: int,
+    first_day: int,
+    workers: int = 16,
+    expert: str = "optimum-announced",
 ) -> dict[str, np.ndarray]:
-    """Teacher's (observation, action, reward) on `days` training days; cached on disk."""
-    key = json.dumps({"env": env_kwargs, "days": days, "first": first_day}, sort_keys=True)
+    """Teacher's (observation, action, reward) on `days` training days; cached on disk.
+
+    expert: "optimum-announced" (trusts announced departures; PPO-Trusting/RiskAware)
+    or "optimum-real" (knows the real ones; PPO-Oracle).
+    """
+    knows = EXPERTS[expert]
+    spec = {"env": env_kwargs, "days": days, "first": first_day}
+    if knows != "announced":  # (kept out of the key for the announced teacher: old caches)
+        spec["knows"] = knows
+    key = json.dumps(spec, sort_keys=True)
     path = CACHE_DIR / f"{hashlib.sha1(key.encode()).hexdigest()[:12]}.npz"
     if path.exists():
         return dict(np.load(path))
@@ -81,10 +95,10 @@ def collect_expert_data(
     chunks = [seeds[i::workers] for i in range(workers) if seeds[i::workers]]
     t0 = time.perf_counter()
     if len(chunks) == 1:
-        parts = [_play_days((env_kwargs, chunks[0]))]
+        parts = [_play_days((env_kwargs, chunks[0], knows))]
     else:
         with ProcessPoolExecutor(len(chunks)) as pool:
-            parts = list(pool.map(_play_days, [(env_kwargs, c) for c in chunks]))
+            parts = list(pool.map(_play_days, [(env_kwargs, c, knows) for c in chunks]))
     data = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
     data["seconds"] = np.array(time.perf_counter() - t0)
     path.parent.mkdir(parents=True, exist_ok=True)

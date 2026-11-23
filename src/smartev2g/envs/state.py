@@ -45,7 +45,18 @@ def steps_to_target(ev, cs, timescale_min: float) -> float:
     return missing_kwh / kwh_per_step if kwh_per_step > 0 else 0.0
 
 
-def V2G_profit_max_laxity(env, *args) -> np.ndarray:  # noqa: N802 (EV2Gym naming style)
+def departure_seen(env, ev, real_departures: bool = False) -> int:
+    """Departure step the agent is shown: the ANNOUNCED one (normal agents), or the REAL
+    one for PPO-Oracle (privileged information [R6]; hidden early departures, ADR-0002)."""
+    if real_departures:
+        plan = getattr(env, "departure_plan", {}) or {}
+        early = plan.get((ev.location, ev.time_of_arrival))
+        if early is not None:
+            return early[1]
+    return ev.time_of_departure
+
+
+def V2G_profit_max_laxity(env, *args, real_departures: bool = False) -> np.ndarray:  # noqa: N802
     """EV2Gym's V2G_profit_max observation plus steps_needed and laxity per port."""
     t = env.current_step
     prices = np.abs(env.charge_prices[0, t : t + PRICE_HORIZON])
@@ -59,7 +70,7 @@ def V2G_profit_max_laxity(env, *args) -> np.ndarray:  # noqa: N802 (EV2Gym namin
                 if ev is None:
                     state.append(np.zeros(len(PORT_FEATURES_LAXITY)))
                     continue
-                t_dep = ev.time_of_departure - t
+                t_dep = departure_seen(env, ev, real_departures) - t
                 needed = steps_to_target(ev, cs, env.timescale)
                 state.append(np.array([ev.get_soc(), t_dep, needed, t_dep - needed]))
     return np.hstack(state).astype(np.float64)
@@ -87,7 +98,7 @@ def known_price_steps(env, t: int) -> int:
     return min(until, env.simulation_length)
 
 
-def V2G_profit_max_laxity_dayahead(env, *args) -> np.ndarray:  # noqa: N802
+def V2G_profit_max_laxity_dayahead(env, *args, real_departures: bool = False) -> np.ndarray:  # noqa: N802
     """Like V2G_profit_max_laxity, but with every PUBLISHED price of the next 24 h.
 
     Layout: [t, P_prev, price_0..95, n_known, then per port: soc, t_dep,
@@ -99,6 +110,13 @@ def V2G_profit_max_laxity_dayahead(env, *args) -> np.ndarray:  # noqa: N802
     n = min(known, DAYAHEAD_HORIZON)
     prices = np.zeros(DAYAHEAD_HORIZON)
     prices[:n] = np.abs(env.charge_prices[0, t : t + n])
-    base = V2G_profit_max_laxity(env)
+    base = V2G_profit_max_laxity(env, real_departures=real_departures)
     head = 2 + PRICE_HORIZON  # [t, P_prev, 20 prices] in the laxity layout
     return np.hstack([base[:2], prices, [n], base[head:]]).astype(np.float64)
+
+
+def V2G_profit_max_laxity_dayahead_oracle(env, *args) -> np.ndarray:  # noqa: N802
+    """PPO-Oracle's observation: the day-ahead one, but t_dep and laxity use each car's
+    REAL departure (it "knows" who leaves early). Upper reference for the learning
+    agents (Phase 4); the exact ceiling is Optimum-real (eval/optimum.py)."""
+    return V2G_profit_max_laxity_dayahead(env, real_departures=True)

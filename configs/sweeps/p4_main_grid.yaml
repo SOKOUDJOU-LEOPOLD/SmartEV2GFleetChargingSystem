@@ -1,0 +1,31 @@
+# Phase 4 main grid (Option A, approved by Leopold 2026-11-22). Frozen setup: ADR-0007.
+#   λ_dep {500, 200, 1000} × agent {Trusting, RiskAware p 0.05 / 0.1 / 0.2} × 10 seeds
+#   = 120 runs (~57 min each, ~12 at a time -> ~11 h). λ 500 first (main answer first).
+# Every agent is tested on the same 50 test days in 4 worlds (train/test grid), with
+# per-step trajectories for the hedging analysis.
+# Launch (detached, resumable; see scripts/sweep.py):
+#   setsid nohup .venv/bin/python scripts/sweep.py configs/sweeps/p4_main_grid.yaml \
+#       > results/logs/p4-main-grid.log 2>&1 < /dev/null &
+
+name: p4-main-grid
+config: configs/experiments/p4_main.yaml
+seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+max_parallel: 11 # ~11 × 17 CPU processes; other users use ~50 of the 256 cores
+cleanup_wandb: true # local wandb copies deleted after upload (disk is 95 % full)
+evaluate:
+  p_early: [0, 0.05, 0.1, 0.2]
+  trajectories: true
+
+grid:
+  lambda: # weight of the squared shortfall at departure (Phase 2 calibration)
+    - {label: lam500, set: {env.reward_kwargs.lambda_dep: 500.0}}
+    - {label: lam200, set: {env.reward_kwargs.lambda_dep: 200.0}}
+    - {label: lam1000, set: {env.reward_kwargs.lambda_dep: 1000.0}}
+  agent: # identical except the training world (hidden early departures, cut 10–50 %)
+    - {label: trusting, set: {agent: PPO-Trusting, env.departures: null}}
+    - label: riskaware-p0.05
+      set: {agent: PPO-RiskAware, env.departures: {p_early: 0.05, cut_min: 0.1, cut_max: 0.5}}
+    - label: riskaware-p0.1
+      set: {agent: PPO-RiskAware, env.departures: {p_early: 0.1, cut_min: 0.1, cut_max: 0.5}}
+    - label: riskaware-p0.2
+      set: {agent: PPO-RiskAware, env.departures: {p_early: 0.2, cut_min: 0.1, cut_max: 0.5}}

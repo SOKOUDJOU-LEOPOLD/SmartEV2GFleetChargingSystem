@@ -171,3 +171,38 @@ def test_cross_evaluation_script(tmp_path, monkeypatch):
     assert summary["train_p_early"].iloc[0] == 0.1
     assert summary.loc[0, "n_early"] == 0 and summary.loc[1, "n_early"] > 0
     assert (run_dir / "eval" / "test_p0.5_evs.csv").exists()
+
+
+def test_oracle_observation_shows_the_real_departure():
+    """PPO-Oracle (Phase 4) sees each early leaver's REAL departure; others are unchanged."""
+    oracle_fn = "V2G_profit_max_laxity_dayahead_oracle"
+    normal_fn = "V2G_profit_max_laxity_dayahead"
+    kw = {**REWARD, "charging_target": 0.8, "departures": {"p_early": 0.5}}
+    oracle = make_env(seed=DAY, state_function=oracle_fn, **kw)
+    normal = make_env(seed=DAY, state_function=normal_fn, **kw)
+    names = observation_names(oracle, oracle_fn)
+    assert names == observation_names(normal, normal_fn)
+    oracle.reset(seed=DAY)
+    normal.reset(seed=DAY)
+    plan = oracle.departure_plan
+    rng = np.random.default_rng(0)
+    seen_early = 0
+    for _ in range(60):
+        o, n = oracle._get_observation(), normal._get_observation()
+        t = oracle.current_step
+        for k, cs in enumerate(oracle.charging_stations):
+            ev = cs.evs_connected[0]
+            if ev is None:
+                continue
+            key = (ev.location, ev.time_of_arrival)
+            i = names.index(f"t_dep_{k}")
+            if key in plan:
+                seen_early += 1
+                assert o[i] == plan[key][1] - t  # real
+                assert n[i] == plan[key][0] - t  # announced
+            else:
+                assert o[i] == n[i]
+        action = rng.uniform(-1, 1, 20)
+        oracle.step(action)
+        normal.step(action)
+    assert seen_early > 0

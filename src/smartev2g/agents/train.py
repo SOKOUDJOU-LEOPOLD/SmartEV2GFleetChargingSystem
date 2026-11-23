@@ -296,7 +296,11 @@ def train(
     expert = None
     if pre:
         expert = collect_expert_data(
-            env_kwargs(cfg), pre["days"], pre["first_day"], workers=pre.get("workers", 16)
+            env_kwargs(cfg),
+            pre["days"],
+            pre["first_day"],
+            workers=pre.get("workers", 16),
+            expert=pre.get("expert", "optimum-announced"),
         )
     venv = make_training_env(cfg, seed, t["n_envs"], restart)
 

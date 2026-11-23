@@ -57,3 +57,42 @@ def test_figures_are_written(tmp_path):
     assert (tmp_path / "learning.png").stat().st_size > 10_000
     with pytest.raises(ValueError):
         plots.plot_grid(summary, [f"x{i}" for i in range(9)], tmp_path / "too_many.png")
+
+
+def test_every_agent_is_paired_with_the_first_and_holm_corrected():
+    df = per_run()
+    extra = df[df["agent"] == "B"].assign(agent="C")
+    extra["return"] += 1
+    pairs = mf.paired(pd.concat([df, extra]), ["A", "B", "C"])
+    assert set(pairs["comparison"]) == {"B − A", "C − A"}
+    assert len(pairs) == 4  # 2 comparisons × 2 test worlds
+    assert (pairs["t_test_p_holm"] >= pairs["t_test_p"]).all()
+    assert (pairs["t_test_p_holm"] <= 1).all()
+
+
+def test_holm_by_hand():
+    p = pd.Series([0.01, 0.04, 0.03])
+    # sorted 0.01, 0.03, 0.04 -> ×3, ×2, ×1 = 0.03, 0.06, 0.04 -> never decreasing: 0.06
+    assert mf.holm(p).tolist() == pytest.approx([0.03, 0.06, 0.06])
+
+
+def test_car_stats_battery_level_when_leaving():
+    evs = pd.DataFrame(
+        {
+            "soc_final": [0.80, 0.60, 0.75, 0.90],
+            "early": [False, True, True, False],
+            "below_target": [False, True, True, False],
+        }
+    )
+    row = mf.car_stats(evs)
+    assert row["soc_final_all"] == pytest.approx(0.7625)
+    assert row["soc_final_early"] == pytest.approx(0.675)
+    assert row["pct_early_below_70"] == pytest.approx(50.0)
+    assert row["pct_all_below_target"] == pytest.approx(50.0)
+
+
+def test_many_agents_get_a_legend_under_the_plot(tmp_path):
+    df = per_run()
+    many = pd.concat([df.assign(agent=f"agent {i}") for i in range(6)])
+    plots.plot_grid(mf.summarise(many), [f"agent {i}" for i in range(6)], tmp_path / "g.png")
+    assert (tmp_path / "g.png").stat().st_size > 10_000

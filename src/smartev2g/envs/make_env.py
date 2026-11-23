@@ -45,12 +45,15 @@ STATE_FUNCTIONS: dict[str, Callable] = {
     "V2G_profit_max_laxity": our_state.V2G_profit_max_laxity,
     # Same + every published day-ahead price of the next 24 h instead of 5 h.
     "V2G_profit_max_laxity_dayahead": our_state.V2G_profit_max_laxity_dayahead,
+    # PPO-Oracle: same, but the REAL departure time of early leavers (Phase 4).
+    "V2G_profit_max_laxity_dayahead_oracle": our_state.V2G_profit_max_laxity_dayahead_oracle,
 }
 # Numbers per port in each state function (for observation_names).
 PORT_FEATURES = {
     "V2G_profit_max": ["soc", "t_dep"],
     "V2G_profit_max_laxity": our_state.PORT_FEATURES_LAXITY,
     "V2G_profit_max_laxity_dayahead": our_state.PORT_FEATURES_LAXITY,
+    "V2G_profit_max_laxity_dayahead_oracle": our_state.PORT_FEATURES_LAXITY,
 }
 REWARD_FUNCTIONS: dict[str, Callable] = {
     # EV2Gym's default V2G reward: profit minus a penalty for unhappy drivers.
@@ -260,7 +263,7 @@ def observation_names(env: EV2Gym, state_function: str = "V2G_profit_max") -> li
     - steps_needed_k, laxity_k (laxity state functions only): full-power charging
       steps still needed, and spare time = t_dep_k − steps_needed_k.
     """
-    if state_function == "V2G_profit_max_laxity_dayahead":  # 24 h of prices + count
+    if state_function.startswith("V2G_profit_max_laxity_dayahead"):  # 24 h of prices + count
         prices = [f"price_{i}" for i in range(our_state.DAYAHEAD_HORIZON)] + ["n_known"]
     else:
         prices = [f"price_{i}" for i in range(PRICE_HORIZON)]
