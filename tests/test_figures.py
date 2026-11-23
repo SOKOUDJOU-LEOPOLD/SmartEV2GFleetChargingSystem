@@ -96,3 +96,71 @@ def test_many_agents_get_a_legend_under_the_plot(tmp_path):
     many = pd.concat([df.assign(agent=f"agent {i}") for i in range(6)])
     plots.plot_grid(mf.summarise(many), [f"agent {i}" for i in range(6)], tmp_path / "g.png")
     assert (tmp_path / "g.png").stat().st_size > 10_000
+
+
+# --- money-vs-safety curve (scripts/make_tradeoff.py) ---
+tspec = importlib.util.spec_from_file_location("mt", REPO_ROOT / "scripts" / "make_tradeoff.py")
+mt = importlib.util.module_from_spec(tspec)
+tspec.loader.exec_module(mt)
+
+
+def tradeoff_seeds():
+    """Agent B at λ 1 is cheaper AND safer than A at λ 2 (clear gap, small spread)."""
+    rows = []
+    for seed in range(6):
+        noise = 0.1 * seed
+        rows += [
+            {
+                "agent": "A",
+                "lambda_dep": 1.0,
+                "seed": seed,
+                "money": -10 + noise,
+                "below70": 30 + noise,
+            },
+            {
+                "agent": "A",
+                "lambda_dep": 2.0,
+                "seed": seed,
+                "money": -20 + noise,
+                "below70": 20 + noise,
+            },
+            {
+                "agent": "B",
+                "lambda_dep": 1.0,
+                "seed": seed,
+                "money": -12 + noise,
+                "below70": 10 + noise,
+            },
+            {
+                "agent": "B",
+                "lambda_dep": 2.0,
+                "seed": seed,
+                "money": -22 + noise,
+                "below70": 5 + noise,
+            },
+        ]
+    return pd.DataFrame(rows)
+
+
+def test_tradeoff_summary_and_dominance():
+    seeds = tradeoff_seeds()
+    points = mt.summarise(seeds)
+    row = points[(points["agent"] == "B") & (points["lambda_dep"] == 1.0)].iloc[0]
+    assert row["money_mean"] == pytest.approx(-12 + 0.25) and row["n_seeds"] == 6
+    dom = mt.dominance(seeds, "A", "B")
+    assert len(dom) == 4  # every (B point, A point) pair
+    both = dom[dom["better_on_both"]]
+    # only B at λ 1 vs A at λ 2 is better on both money (+8) and safety (−10)
+    assert list(zip(both["lambda_other"], both["lambda_base"], strict=True)) == [(1.0, 2.0)]
+    assert (dom["money_p_holm"] >= dom["money_p"]).all()
+
+
+def test_tradeoff_figure_is_written(tmp_path):
+    points = mt.summarise(tradeoff_seeds())
+    refs = pd.DataFrame([
+        {"policy": "AFAP-target", "lambda_dep": 1.0, "money": -30, "below70": 0.5},
+        {"policy": "Optimum-real", "lambda_dep": 1.0, "money": -5, "below70": 0.5},
+        {"policy": "Optimum-real", "lambda_dep": 2.0, "money": -6, "below70": 0.5},
+    ])  # fmt: skip
+    plots.plot_tradeoff(points, ["A", "B"], 0.2, tmp_path / "t.png", refs)
+    assert (tmp_path / "t.png").stat().st_size > 0

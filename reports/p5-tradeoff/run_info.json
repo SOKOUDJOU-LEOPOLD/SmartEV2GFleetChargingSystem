@@ -1,0 +1,607 @@
+{
+  "run_id": "p5-tradeoff",
+  "script": "scripts/make_tradeoff.py",
+  "args": {
+    "runs": {
+      "PPO-Trusting \u03bb200": [
+        "20261123-015655_p4-arrival-lam200-trusting_s0",
+        "20261123-015655_p4-arrival-lam200-trusting_s2",
+        "20261123-015656_p4-arrival-lam200-trusting_s1",
+        "20261123-015725_p4-arrival-lam200-trusting_s3",
+        "20261123-015756_p4-arrival-lam200-trusting_s4",
+        "20261123-015826_p4-arrival-lam200-trusting_s5",
+        "20261123-015826_p4-arrival-lam200-trusting_s6",
+        "20261123-020028_p4-arrival-lam200-trusting_s7",
+        "20261123-020229_p4-arrival-lam200-trusting_s8",
+        "20261123-020300_p4-arrival-lam200-trusting_s9"
+      ],
+      "PPO-Trusting \u03bb500": [
+        "20261122-200930_p4-arrival-lam500-trusting_s0",
+        "20261122-200930_p4-arrival-lam500-trusting_s1",
+        "20261122-200930_p4-arrival-lam500-trusting_s2",
+        "20261122-200930_p4-arrival-lam500-trusting_s3",
+        "20261122-200930_p4-arrival-lam500-trusting_s4",
+        "20261122-200930_p4-arrival-lam500-trusting_s5",
+        "20261122-200930_p4-arrival-lam500-trusting_s6",
+        "20261122-200930_p4-arrival-lam500-trusting_s7",
+        "20261122-200930_p4-arrival-lam500-trusting_s8",
+        "20261122-200930_p4-arrival-lam500-trusting_s9"
+      ],
+      "PPO-Trusting \u03bb1000": [
+        "20261122-211226_p4-arrival-lam1000-trusting_s0",
+        "20261122-211257_p4-arrival-lam1000-trusting_s1",
+        "20261122-211357_p4-arrival-lam1000-trusting_s2",
+        "20261122-211357_p4-arrival-lam1000-trusting_s3",
+        "20261122-211357_p4-arrival-lam1000-trusting_s4",
+        "20261122-211458_p4-arrival-lam1000-trusting_s5",
+        "20261122-211458_p4-arrival-lam1000-trusting_s6",
+        "20261122-211559_p4-arrival-lam1000-trusting_s7",
+        "20261122-211629_p4-arrival-lam1000-trusting_s8",
+        "20261122-211700_p4-arrival-lam1000-trusting_s9"
+      ],
+      "PPO-Trusting \u03bb2000": [
+        "20261123-004756_p4-arrival-lam2000-trusting_s0",
+        "20261123-004756_p4-arrival-lam2000-trusting_s1",
+        "20261123-004756_p4-arrival-lam2000-trusting_s2",
+        "20261123-004756_p4-arrival-lam2000-trusting_s3",
+        "20261123-004756_p4-arrival-lam2000-trusting_s6",
+        "20261123-004756_p4-arrival-lam2000-trusting_s7",
+        "20261123-004757_p4-arrival-lam2000-trusting_s4",
+        "20261123-004757_p4-arrival-lam2000-trusting_s5",
+        "20261123-004757_p4-arrival-lam2000-trusting_s8",
+        "20261123-004757_p4-arrival-lam2000-trusting_s9"
+      ],
+      "RiskAware p0.2 \u03bb200": [
+        "20261123-020330_p4-arrival-lam200-riskaware-p0.2_s0",
+        "20261123-020330_p4-arrival-lam200-riskaware-p0.2_s1",
+        "20261123-020330_p4-arrival-lam200-riskaware-p0.2_s2",
+        "20261123-020330_p4-arrival-lam200-riskaware-p0.2_s3",
+        "20261123-020330_p4-arrival-lam200-riskaware-p0.2_s4",
+        "20261123-020330_p4-arrival-lam200-riskaware-p0.2_s5",
+        "20261123-020330_p4-arrival-lam200-riskaware-p0.2_s6",
+        "20261123-020401_p4-arrival-lam200-riskaware-p0.2_s7",
+        "20261123-020431_p4-arrival-lam200-riskaware-p0.2_s8",
+        "20261123-020431_p4-arrival-lam200-riskaware-p0.2_s9"
+      ],
+      "RiskAware p0.2 \u03bb500": [
+        "20261122-205845_p4-arrival-lam500-riskaware-p0.2_s2",
+        "20261122-205846_p4-arrival-lam500-riskaware-p0.2_s0",
+        "20261122-205846_p4-arrival-lam500-riskaware-p0.2_s1",
+        "20261122-205846_p4-arrival-lam500-riskaware-p0.2_s3",
+        "20261122-205846_p4-arrival-lam500-riskaware-p0.2_s4",
+        "20261122-205846_p4-arrival-lam500-riskaware-p0.2_s5",
+        "20261122-205846_p4-arrival-lam500-riskaware-p0.2_s6",
+        "20261122-205846_p4-arrival-lam500-riskaware-p0.2_s7",
+        "20261122-205846_p4-arrival-lam500-riskaware-p0.2_s8",
+        "20261122-205846_p4-arrival-lam500-riskaware-p0.2_s9"
+      ],
+      "RiskAware p0.2 \u03bb1000": [
+        "20261122-220810_p4-arrival-lam1000-riskaware-p0.2_s0",
+        "20261122-220810_p4-arrival-lam1000-riskaware-p0.2_s1",
+        "20261122-220810_p4-arrival-lam1000-riskaware-p0.2_s2",
+        "20261122-220840_p4-arrival-lam1000-riskaware-p0.2_s3",
+        "20261122-220911_p4-arrival-lam1000-riskaware-p0.2_s4",
+        "20261122-220911_p4-arrival-lam1000-riskaware-p0.2_s5",
+        "20261122-221041_p4-arrival-lam1000-riskaware-p0.2_s6",
+        "20261122-221112_p4-arrival-lam1000-riskaware-p0.2_s7",
+        "20261122-221142_p4-arrival-lam1000-riskaware-p0.2_s8",
+        "20261122-221212_p4-arrival-lam1000-riskaware-p0.2_s9"
+      ],
+      "RiskAware p0.2 \u03bb2000": [
+        "20261123-004756_p4-arrival-lam2000-riskaware-p0.2_s1",
+        "20261123-004756_p4-arrival-lam2000-riskaware-p0.2_s6",
+        "20261123-004757_p4-arrival-lam2000-riskaware-p0.2_s0",
+        "20261123-004757_p4-arrival-lam2000-riskaware-p0.2_s2",
+        "20261123-004757_p4-arrival-lam2000-riskaware-p0.2_s3",
+        "20261123-004757_p4-arrival-lam2000-riskaware-p0.2_s4",
+        "20261123-004757_p4-arrival-lam2000-riskaware-p0.2_s5",
+        "20261123-004757_p4-arrival-lam2000-riskaware-p0.2_s7",
+        "20261123-004757_p4-arrival-lam2000-riskaware-p0.2_s8",
+        "20261123-004757_p4-arrival-lam2000-riskaware-p0.2_s9"
+      ]
+    },
+    "agent": [
+      "PPO-Trusting=results/*_p4-arrival-lam{lam}-trusting_s?",
+      "RiskAware p0.2=results/*_p4-arrival-lam{lam}-riskaware-p0.2_s?"
+    ],
+    "lambdas": [
+      200.0,
+      500.0,
+      1000.0,
+      2000.0
+    ],
+    "optimum": "results/*_optimum-test-lamdep{lam}-arrivaltarget",
+    "test_p": 0.2,
+    "out": "reports/p5-tradeoff"
+  },
+  "config_path": "results/20261123-015655_p4-arrival-lam200-trusting_s0/config_resolved.yaml",
+  "config": {
+    "name": "p4-arrival",
+    "agent": "PPO-Trusting",
+    "agent_design": "site",
+    "env": {
+      "config": "configs/env/v2g_profitmax_20port.yaml",
+      "state_function": "V2G_profit_max_laxity_dayahead",
+      "reward_function": "squared_shortfall",
+      "reward_kwargs": {
+        "lambda_dep": 200.0,
+        "lambda_over": 0.1
+      },
+      "charging_target": 0.8,
+      "arrival_rule": "target",
+      "departures": null
+    },
+    "scenarios": "configs/eval/scenarios_val30.yaml",
+    "training": {
+      "total_timesteps": 6000000,
+      "n_envs": 16,
+      "device": "cpu",
+      "torch_threads": 1,
+      "normalize_obs": true,
+      "normalize_reward": true,
+      "eval_every_steps": 50000,
+      "checkpoint_every_steps": 100000
+    },
+    "ppo": {
+      "learning_rate": 0.0001,
+      "n_steps": 448,
+      "batch_size": 2048,
+      "n_epochs": 5,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "clip_range": 0.2,
+      "target_kl": null,
+      "ent_coef": 0.0,
+      "vf_coef": 0.5,
+      "max_grad_norm": 0.5,
+      "policy_kwargs": {
+        "net_arch": [
+          256,
+          256
+        ],
+        "log_std_init": 0.0
+      }
+    },
+    "logging": {
+      "wandb": "online",
+      "project": "smartev2g"
+    },
+    "pretrain": {
+      "expert": "optimum-announced",
+      "days": 2000,
+      "first_day": 900000,
+      "workers": 32,
+      "epochs": 60,
+      "batch_size": 4096,
+      "learning_rate": 0.001,
+      "log_std": -1.0,
+      "critic": true
+    },
+    "variant": "lam200-trusting",
+    "seed": 0
+  },
+  "seeds": [],
+  "git": {
+    "commit": "66a46beaf2861c95f8dc31832e87d42431ce6983",
+    "branch": "leopold/exp/p5-tradeoff-curve",
+    "dirty": true
+  },
+  "packages": {
+    "ev2gym": "2.0.0",
+    "gymnasium": "1.4.0",
+    "stable-baselines3": "2.9.2",
+    "sb3-contrib": "2.9.2",
+    "torch": "2.15.0",
+    "numpy": "2.4.6",
+    "pandas": "2.3.3"
+  },
+  "hardware": {
+    "os": "Linux-7.0.0-43-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3",
+    "cpu": "AMD EPYC 9554 64-Core Processor",
+    "cpu_count": 256,
+    "gpus": [
+      "NVIDIA H100 NVL",
+      "NVIDIA H100 NVL",
+      "NVIDIA H100 NVL",
+      "NVIDIA H100 NVL"
+    ]
+  },
+  "start_time": "2026-11-23T03:25:37",
+  "end_time": "2026-11-23T03:25:37",
+  "wall_clock_s": 1.91,
+  "results": {
+    "tradeoff": [
+      {
+        "agent": "PPO-Trusting",
+        "lambda_dep": 200.0,
+        "n_seeds": 10,
+        "money_mean": -24.1977,
+        "money_ci95": 1.0625,
+        "below70_mean": 32.4224,
+        "below70_ci95": 2.8627
+      },
+      {
+        "agent": "PPO-Trusting",
+        "lambda_dep": 500.0,
+        "n_seeds": 10,
+        "money_mean": -33.4759,
+        "money_ci95": 0.6058,
+        "below70_mean": 25.7143,
+        "below70_ci95": 2.1278
+      },
+      {
+        "agent": "PPO-Trusting",
+        "lambda_dep": 1000.0,
+        "n_seeds": 10,
+        "money_mean": -38.3307,
+        "money_ci95": 0.6179,
+        "below70_mean": 20.6211,
+        "below70_ci95": 1.9514
+      },
+      {
+        "agent": "PPO-Trusting",
+        "lambda_dep": 2000.0,
+        "n_seeds": 10,
+        "money_mean": -44.7548,
+        "money_ci95": 1.5288,
+        "below70_mean": 17.8882,
+        "below70_ci95": 3.6508
+      },
+      {
+        "agent": "RiskAware p0.2",
+        "lambda_dep": 200.0,
+        "n_seeds": 10,
+        "money_mean": -26.4826,
+        "money_ci95": 0.5322,
+        "below70_mean": 19.3168,
+        "below70_ci95": 1.6419
+      },
+      {
+        "agent": "RiskAware p0.2",
+        "lambda_dep": 500.0,
+        "n_seeds": 10,
+        "money_mean": -35.2615,
+        "money_ci95": 0.4242,
+        "below70_mean": 11.8012,
+        "below70_ci95": 1.0473
+      },
+      {
+        "agent": "RiskAware p0.2",
+        "lambda_dep": 1000.0,
+        "n_seeds": 10,
+        "money_mean": -42.0917,
+        "money_ci95": 1.1493,
+        "below70_mean": 7.7019,
+        "below70_ci95": 1.3444
+      },
+      {
+        "agent": "RiskAware p0.2",
+        "lambda_dep": 2000.0,
+        "n_seeds": 10,
+        "money_mean": -50.455,
+        "money_ci95": 1.1483,
+        "below70_mean": 4.7826,
+        "below70_ci95": 0.8899
+      },
+      {
+        "agent": "AFAP-target",
+        "lambda_dep": 200.0,
+        "n_seeds": 1,
+        "money_mean": -47.8645,
+        "money_ci95": NaN,
+        "below70_mean": 0.6211,
+        "below70_ci95": NaN
+      },
+      {
+        "agent": "Optimum-announced",
+        "lambda_dep": 200.0,
+        "n_seeds": 1,
+        "money_mean": -19.9285,
+        "money_ci95": NaN,
+        "below70_mean": 24.2236,
+        "below70_ci95": NaN
+      },
+      {
+        "agent": "Optimum-real",
+        "lambda_dep": 200.0,
+        "n_seeds": 1,
+        "money_mean": -17.4845,
+        "money_ci95": NaN,
+        "below70_mean": 0.6211,
+        "below70_ci95": NaN
+      },
+      {
+        "agent": "AFAP-target",
+        "lambda_dep": 500.0,
+        "n_seeds": 1,
+        "money_mean": -47.8645,
+        "money_ci95": NaN,
+        "below70_mean": 0.6211,
+        "below70_ci95": NaN
+      },
+      {
+        "agent": "Optimum-announced",
+        "lambda_dep": 500.0,
+        "n_seeds": 1,
+        "money_mean": -25.5425,
+        "money_ci95": NaN,
+        "below70_mean": 21.7391,
+        "below70_ci95": NaN
+      },
+      {
+        "agent": "Optimum-real",
+        "lambda_dep": 500.0,
+        "n_seeds": 1,
+        "money_mean": -23.5455,
+        "money_ci95": NaN,
+        "below70_mean": 0.6211,
+        "below70_ci95": NaN
+      },
+      {
+        "agent": "AFAP-target",
+        "lambda_dep": 1000.0,
+        "n_seeds": 1,
+        "money_mean": -47.8645,
+        "money_ci95": NaN,
+        "below70_mean": 0.6211,
+        "below70_ci95": NaN
+      },
+      {
+        "agent": "Optimum-announced",
+        "lambda_dep": 1000.0,
+        "n_seeds": 1,
+        "money_mean": -27.4392,
+        "money_ci95": NaN,
+        "below70_mean": 21.118,
+        "below70_ci95": NaN
+      },
+      {
+        "agent": "Optimum-real",
+        "lambda_dep": 1000.0,
+        "n_seeds": 1,
+        "money_mean": -25.652,
+        "money_ci95": NaN,
+        "below70_mean": 0.6211,
+        "below70_ci95": NaN
+      },
+      {
+        "agent": "AFAP-target",
+        "lambda_dep": 2000.0,
+        "n_seeds": 1,
+        "money_mean": -47.8645,
+        "money_ci95": NaN,
+        "below70_mean": 0.6211,
+        "below70_ci95": NaN
+      },
+      {
+        "agent": "Optimum-announced",
+        "lambda_dep": 2000.0,
+        "n_seeds": 1,
+        "money_mean": -28.3757,
+        "money_ci95": NaN,
+        "below70_mean": 21.118,
+        "below70_ci95": NaN
+      },
+      {
+        "agent": "Optimum-real",
+        "lambda_dep": 2000.0,
+        "n_seeds": 1,
+        "money_mean": -26.6866,
+        "money_ci95": NaN,
+        "below70_mean": 0.6211,
+        "below70_ci95": NaN
+      }
+    ],
+    "dominance": [
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 200.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 200.0,
+        "money_diff": -2.2849,
+        "money_p": 0.0008,
+        "below70_diff": -13.1056,
+        "below70_p": 0.0,
+        "money_p_holm": 0.0038,
+        "below70_p_holm": 0.0,
+        "better_on_both": false
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 200.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 500.0,
+        "money_diff": 6.9933,
+        "money_p": 0.0,
+        "below70_diff": -6.3975,
+        "below70_p": 0.0001,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.0004,
+        "better_on_both": true
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 200.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 1000.0,
+        "money_diff": 11.848,
+        "money_p": 0.0,
+        "below70_diff": -1.3043,
+        "below70_p": 0.2628,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.5257,
+        "better_on_both": false
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 200.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 2000.0,
+        "money_diff": 18.2722,
+        "money_p": 0.0,
+        "below70_diff": 1.4286,
+        "below70_p": 0.4346,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.5257,
+        "better_on_both": false
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 500.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 200.0,
+        "money_diff": -11.0638,
+        "money_p": 0.0,
+        "below70_diff": -20.6211,
+        "below70_p": 0.0,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.0,
+        "better_on_both": false
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 500.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 500.0,
+        "money_diff": -1.7856,
+        "money_p": 0.0001,
+        "below70_diff": -13.913,
+        "below70_p": 0.0,
+        "money_p_holm": 0.0004,
+        "below70_p_holm": 0.0,
+        "better_on_both": false
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 500.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 1000.0,
+        "money_diff": 3.0691,
+        "money_p": 0.0,
+        "below70_diff": -8.8199,
+        "below70_p": 0.0,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.0,
+        "better_on_both": true
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 500.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 2000.0,
+        "money_diff": 9.4933,
+        "money_p": 0.0,
+        "below70_diff": -6.087,
+        "below70_p": 0.0043,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.0173,
+        "better_on_both": true
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 1000.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 200.0,
+        "money_diff": -17.894,
+        "money_p": 0.0,
+        "below70_diff": -24.7205,
+        "below70_p": 0.0,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.0,
+        "better_on_both": false
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 1000.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 500.0,
+        "money_diff": -8.6158,
+        "money_p": 0.0,
+        "below70_diff": -18.0124,
+        "below70_p": 0.0,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.0,
+        "better_on_both": false
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 1000.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 1000.0,
+        "money_diff": -3.7611,
+        "money_p": 0.0,
+        "below70_diff": -12.9193,
+        "below70_p": 0.0,
+        "money_p_holm": 0.0001,
+        "below70_p_holm": 0.0,
+        "better_on_both": false
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 1000.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 2000.0,
+        "money_diff": 2.6631,
+        "money_p": 0.0059,
+        "below70_diff": -10.1863,
+        "below70_p": 0.0001,
+        "money_p_holm": 0.0178,
+        "below70_p_holm": 0.0005,
+        "better_on_both": true
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 2000.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 200.0,
+        "money_diff": -26.2573,
+        "money_p": 0.0,
+        "below70_diff": -27.6398,
+        "below70_p": 0.0,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.0,
+        "better_on_both": false
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 2000.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 500.0,
+        "money_diff": -16.9791,
+        "money_p": 0.0,
+        "below70_diff": -20.9317,
+        "below70_p": 0.0,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.0,
+        "better_on_both": false
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 2000.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 1000.0,
+        "money_diff": -12.1243,
+        "money_p": 0.0,
+        "below70_diff": -15.8385,
+        "below70_p": 0.0,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.0,
+        "better_on_both": false
+      },
+      {
+        "other": "RiskAware p0.2",
+        "lambda_other": 2000.0,
+        "base": "PPO-Trusting",
+        "lambda_base": 2000.0,
+        "money_diff": -5.7002,
+        "money_p": 0.0,
+        "below70_diff": -13.1056,
+        "below70_p": 0.0,
+        "money_p_holm": 0.0,
+        "below70_p_holm": 0.0001,
+        "better_on_both": false
+      }
+    ]
+  }
+}

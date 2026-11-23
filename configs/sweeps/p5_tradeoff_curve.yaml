@@ -1,0 +1,27 @@
+# Phase 5: money-vs-safety curve (approved by Leopold 2026-11-23). Same frozen setup as the
+# focused re-run (configs/experiments/p4_arrival.yaml, ADR-0008); only λ_dep changes.
+#   λ_dep {200, 2000} × {Trusting, RiskAware p0.2} × 10 seeds = 40 runs (~1 h each).
+# Together with λ 500 / 1000 (reports/p4-arrival/) every agent gets 4 points on the
+# curve "money per day vs share of early leavers below 70 %": is RiskAware's curve
+# better everywhere, or does raising the penalty for Trusting do the same job?
+# Launch (detached, resumable; see scripts/sweep.py):
+#   setsid nohup .venv/bin/python scripts/sweep.py configs/sweeps/p5_tradeoff_curve.yaml \
+#       > results/logs/p5-tradeoff-curve.log 2>&1 < /dev/null &
+
+name: p5-tradeoff-curve
+config: configs/experiments/p4_arrival.yaml
+seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+max_parallel: 20 # + 6 long-training jobs = 26 runs; ~5–6 cores per run; other users ~50 of 256 cores
+cleanup_wandb: true # local wandb copies deleted after upload (disk is 95 % full)
+evaluate:
+  p_early: [0, 0.05, 0.1, 0.2]
+  trajectories: true
+
+grid:
+  lambda: # λ 200 = undercharging is cheap, λ 2000 = undercharging is very expensive
+    - {label: lam2000, set: {env.reward_kwargs.lambda_dep: 2000.0}}
+    - {label: lam200, set: {env.reward_kwargs.lambda_dep: 200.0}}
+  agent:
+    - {label: trusting, set: {agent: PPO-Trusting, env.departures: null}}
+    - label: riskaware-p0.2
+      set: {agent: PPO-RiskAware, env.departures: {p_early: 0.2, cut_min: 0.1, cut_max: 0.5}}
