@@ -10,7 +10,7 @@
 name: p4-arrival-grid
 config: configs/experiments/p4_arrival.yaml
 seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-max_parallel: 10 # + 3 Oracle jobs = 13 × 17 processes; other users use ~55 of 256 cores
+max_parallel: 20 # + 5 Oracle jobs = 25 runs; measured load ~5–6 cores per run (simulators wait during updates); other users ~55 of 256 cores
 cleanup_wandb: true # local wandb copies deleted after upload (disk is 95 % full)
 evaluate:
   p_early: [0, 0.05, 0.1, 0.2]
