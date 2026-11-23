@@ -61,6 +61,8 @@
 
 **Imitation warm start (behaviour cloning, then RL).** Before learning by trial and error, the agent first copies a teacher: it is shown many situations and the teacher's action in each, and learns to reproduce them (behaviour cloning). Its critic also learns how good each situation was on the teacher's days. Then normal PPO training continues from that starting point. Copying alone tends to drift: small errors add up and the copy never saw how to recover from them, so the RL phase is still needed. Our teacher is the perfect plan that trusts announced departures; code: `agents/imitation.py`. [R20], [R21]
 
+**Many comparisons at once (Holm correction).** One test at the 5 % level is fooled by luck 1 time in 20. If we compare many pairs at once (e.g. 3 RiskAware variants × 4 test worlds = 12 per λ), a "significant" result can appear by luck alone. The Holm correction raises each p-value (the smallest is multiplied by the number of tests, the next by one less, ...) so the chance that ANY of them is a fluke stays below 5 %. `paired.csv` reports both the plain p-value and the one corrected over all rows of that file. [R22]
+
 **Heuristic baseline (AFAP).** A fixed hand-written rule: charge every car as fast as possible. Very safe for drivers, but ignores prices and V2G. [R1]
 
 **Hedging.** Playing it safe against a risk you cannot see — here, keeping extra charge or selling less energy to the grid as the announced departure gets close.
@@ -114,5 +116,6 @@
 | R19 | Q. Huangfu, J. A. J. Hall, "Parallelizing the dual revised simplex method," Mathematical Programming Computation, 2018 (the HiGHS solver, used through SciPy `linprog(method="highs")`). https://highs.dev |
 | R20 | D. A. Pomerleau, "Efficient Training of Artificial Neural Networks for Autonomous Navigation," Neural Computation, 1991 (behaviour cloning). |
 | R21 | A. Rajeswaran et al., "Learning Complex Dexterous Manipulation with Deep Reinforcement Learning and Demonstrations," RSS 2018 (pre-train on demonstrations, then policy-gradient RL). arXiv:1709.10087 |
+| R22 | S. Holm, "A Simple Sequentially Rejective Multiple Test Procedure," Scandinavian Journal of Statistics, 1979. |
 
 R1–R10 match the numbering of the [literature review](../proposal/Literature_Review.md).

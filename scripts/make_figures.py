@@ -9,8 +9,12 @@ Usage:
 Each group = one agent, several seeds (runs evaluated with scripts/evaluate_model.py).
 Writes to --out (default results/<run_id>_figures/):
 - summary.csv   per agent and test world: mean, std, 95 % CI and n over seeds
-- paired.csv    (2 agents) per test world: difference of agent 2 − agent 1 paired by
-                seed, its 95 % CI, wins, and the paired t-test p-value
+- paired.csv    per test world, every agent − the FIRST agent, paired by seed: mean
+                difference, its 95 % CI, wins, paired t-test p-value, and the
+                Holm-corrected p-value over all rows (many comparisons at once)
+- drivers.csv   battery level when cars leave (per agent and test world, mean ± 95 % CI
+                over seeds): all cars, early leavers, worst 10 % of early leavers,
+                share of early leavers below 70 % (+ AFAP-target / optimum with --optimum)
 - grid.png      train/test grid (+ AFAP-target and optimum lines with --optimum)
 - learning.png  validation score during training
 - hedging_p<p>.png  for every test world with saved trajectories (--trajectories)
@@ -92,36 +96,100 @@ def summarise(per_run: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(out)
 
 
+def holm(pvalues: pd.Series) -> pd.Series:
+    """Holm correction: when we test many differences at once, a few small p-values
+    appear by luck; Holm raises each p-value so the chance of ANY false "significant"
+    stays below 5 %. Ref: Holm 1979 [R22]."""
+    order = pvalues.sort_values().index
+    m, running, out = len(pvalues), 0.0, pd.Series(np.nan, index=pvalues.index)
+    for rank, idx in enumerate(order):
+        running = max(running, min(1.0, (m - rank) * pvalues[idx]))
+        out[idx] = running
+    return out
+
+
 def paired(per_run: pd.DataFrame, agents: list[str]) -> pd.DataFrame:
-    """Agent 2 − agent 1 on the same seed, per test world (only seeds both have)."""
-    a, b = agents
+    """Every agent − the first agent on the same seed, per test world (shared seeds)."""
+    base = agents[0]
     wide = per_run.pivot_table(index=["test_p_early", "seed"], columns="agent", values="return")
     rows = []
-    for p, g in wide.dropna().groupby(level="test_p_early"):
-        diff = g[b] - g[a]
-        test = st.ttest_1samp(diff, 0) if len(diff) > 1 else None
-        rows.append(
-            {
-                "test_p_early": p,
-                "comparison": f"{b} − {a}",
-                "n_pairs": len(diff),
-                "diff_mean": diff.mean(),
-                "diff_ci95": ci95(diff),
-                "wins": int((diff > 0).sum()),
-                "t_test_p": float(test.pvalue) if test is not None else np.nan,
-            }
+    for other in agents[1:]:
+        for p, g in wide[[base, other]].dropna().groupby(level="test_p_early"):
+            diff = g[other] - g[base]
+            test = st.ttest_1samp(diff, 0) if len(diff) > 1 else None
+            rows.append(
+                {
+                    "test_p_early": p,
+                    "comparison": f"{other} − {base}",
+                    "n_pairs": len(diff),
+                    "diff_mean": diff.mean(),
+                    "diff_ci95": ci95(diff),
+                    "wins": int((diff > 0).sum()),
+                    "t_test_p": float(test.pvalue) if test is not None else np.nan,
+                }
+            )
+    out = pd.DataFrame(rows)
+    out["t_test_p_holm"] = holm(out["t_test_p"])
+    return out
+
+
+LOW_LEVEL = 0.7  # "left with less than 70 %": a driver who clearly lost range
+
+
+def car_stats(evs: pd.DataFrame) -> dict:
+    """Battery level when cars leave, from one test_p*_evs.csv (one agent, one seed)."""
+    early = evs[evs["early"].astype(bool)]
+    row = {"soc_final_all": evs["soc_final"].mean(), "pct_all_below_target":
+           100 * evs["below_target"].astype(bool).mean()}  # fmt: skip
+    if len(early):
+        row.update(
+            soc_final_early=early["soc_final"].mean(),
+            soc_final_early_p10=early["soc_final"].quantile(0.1),
+            pct_early_below_70=100 * (early["soc_final"] < LOW_LEVEL).mean(),
         )
-    return pd.DataFrame(rows)
+    return row
 
 
-def references(pattern: str | None) -> pd.DataFrame | None:
-    """AFAP-target and optimum lines from a scripts/evaluate_optimum.py results folder."""
+def drivers(groups: dict[str, list[Path]], ref_dir: Path | None) -> pd.DataFrame:
+    """Driver protection per agent and test world: mean and 95 % CI over seeds."""
+    rows = []
+    for agent, runs in groups.items():
+        for run in runs:
+            for f in sorted((run / "eval").glob("test_p*_evs.csv")):
+                p = float(re.search(r"test_p([\d.]+)_evs", f.name).group(1))
+                rows.append({"agent": agent, "test_p_early": p, **car_stats(pd.read_csv(f))})
+    if ref_dir is not None:  # reference policies: one deterministic set of test days
+        for f in sorted(ref_dir.glob("test_p*_evs.csv")):
+            p = float(re.search(r"test_p([\d.]+)_evs", f.name).group(1))
+            for policy, evs in pd.read_csv(f).groupby("policy", sort=False):
+                rows.append({"agent": policy, "test_p_early": p, **car_stats(evs)})
+    df = pd.DataFrame(rows)
+    out = []
+    for (agent, p), g in df.groupby(["agent", "test_p_early"], sort=False):
+        row = {"agent": agent, "test_p_early": p, "n_seeds": len(g)}
+        for col in df.columns.drop(["agent", "test_p_early"]):
+            if g[col].notna().any():
+                row[f"{col}_mean"] = g[col].mean()
+                row[f"{col}_ci95"] = ci95(g[col])
+        out.append(row)
+    return pd.DataFrame(out)
+
+
+def reference_dir(pattern: str | None) -> Path | None:
+    """Latest scripts/evaluate_optimum.py results folder matching the glob."""
     if not pattern:
         return None
     dirs = sorted(glob.glob(pattern))
     if not dirs:
         raise SystemExit(f"--optimum {pattern!r} matches nothing")
-    ref = pd.read_csv(Path(dirs[-1]) / "test_summary.csv")
+    return Path(dirs[-1])
+
+
+def references(ref_dir: Path | None) -> pd.DataFrame | None:
+    """AFAP-target and optimum lines for the grid figure."""
+    if ref_dir is None:
+        return None
+    ref = pd.read_csv(ref_dir / "test_summary.csv")
     return ref[["policy", "test_p_early", "return"]]
 
 
@@ -149,12 +217,16 @@ def main() -> None:
     summary = summarise(per_run)
     summary.to_csv(out / "summary.csv", index=False)
     results = {"summary": summary.round(4).to_dict(orient="records")}
-    if len(agents) == 2:
+    ref_dir = reference_dir(args.optimum)
+    if len(agents) >= 2:
         pairs = paired(per_run, agents)
         pairs.to_csv(out / "paired.csv", index=False)
         results["paired"] = pairs.round(4).to_dict(orient="records")
-        print(pairs.round(3).to_string(index=False))
-    plot_grid(summary, agents, out / "grid.png", references(args.optimum))
+        print(pairs.drop(columns="n_pairs").round(3).to_string(index=False))
+    protection = drivers(groups, ref_dir)
+    protection.to_csv(out / "drivers.csv", index=False)
+    results["drivers"] = protection.round(4).to_dict(orient="records")
+    plot_grid(summary, agents, out / "grid.png", references(ref_dir))
 
     curves = []
     for agent, runs in groups.items():

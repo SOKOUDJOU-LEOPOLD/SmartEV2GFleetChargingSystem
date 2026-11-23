@@ -6,7 +6,8 @@ One visual style for every figure (light, for the paper):
 - reference policies (AFAP-target, optimum) are grey lines with their name written
   next to them, so they never borrow an agent's colour;
 - recessive grid and axes; text in text colours; one measure per panel (no second
-  y-axis); a legend plus names at the line ends.
+  y-axis); a legend, plus names at the line ends when there are at most 4 agents
+  (with more, the names would crowd: the legend moves under the plot instead).
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ SERIES_COLORS = [
 ]
 TEXT, TEXT_2, MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#898781", "#e1e0d9", "#fcfcfb"
 REFERENCE_STYLES = ["--", ":", "-."]  # grey reference lines, told apart by dash + label
+DIRECT_LABEL_MAX = 4  # more agents than this: legend under the plot, no names at line ends
 
 
 def ci95(values: pd.Series) -> float:
@@ -79,9 +81,22 @@ def _check_agents(agents: list[str]) -> None:
         raise ValueError(f"at most {len(SERIES_COLORS)} agents per figure (fold or facet)")
 
 
-def _save(fig, path: Path, title: str) -> None:
+def _legend(fig, ax, agents: list[str], loc: str) -> float:
+    """Legend inside the plot (few agents) or one row under the figure (many agents).
+
+    Returns the share of the figure height to keep free at the bottom for it."""
+    if len(agents) <= DIRECT_LABEL_MAX:
+        ax.legend(frameon=False, fontsize=8, loc=loc, labelcolor=TEXT)
+        return 0.0
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, frameon=False, fontsize=8, labelcolor=TEXT,
+               loc="lower center", ncol=min(len(agents), 4))  # fmt: skip
+    return 0.06 * ((len(agents) - 1) // 4 + 1) + 0.03
+
+
+def _save(fig, path: Path, title: str, bottom: float = 0.0) -> None:
     fig.suptitle(title, fontsize=10, color=TEXT, x=0.01, ha="left")
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, bottom, 1, 1))
     fig.savefig(path, dpi=200, facecolor=SURFACE)
     plt.close(fig)
 
@@ -109,17 +124,18 @@ def plot_hedging(prof: pd.DataFrame, agents: list[str], p_early: float, path: Pa
             ax.fill_between(x, s["mean"] - s["std"], s["mean"] + s["std"], color=color,
                             alpha=0.15, lw=0)  # fmt: skip
             ax.plot(x, s["mean"], color=color, lw=2, marker="o", ms=4, label=agent)
-            ends.append([float(s["mean"].iloc[-1]), agent, float(x[-1])])
+            if len(agents) <= DIRECT_LABEL_MAX:
+                ends.append([float(s["mean"].iloc[-1]), agent, float(x[-1])])
         _style(ax, title, "Share of the announced stay elapsed (0 = arrival, 1 = announced "
                           "departure)")  # fmt: skip
         ax.set_xlim(0, 1.18)
         _direct_labels(ax, ends)
-    axes[0].legend(frameon=False, fontsize=8, loc="upper left", labelcolor=TEXT)
+    bottom = _legend(fig, axes[0], agents, "upper left")
     title = (
         f"How agents manage a car's battery over its stay (test world: {p_early:.0%} early "
         "departures; mean over seeds, band = ±1 std)"
     )
-    _save(fig, path, title)
+    _save(fig, path, title, bottom)
 
 
 def plot_grid(summary: pd.DataFrame, agents: list[str], path: Path,
@@ -146,13 +162,14 @@ def plot_grid(summary: pd.DataFrame, agents: list[str], path: Path,
         mean, half = s[f"{metric}_mean"].to_numpy(), s[f"{metric}_ci95"].to_numpy()
         ax.fill_between(x, mean - half, mean + half, color=color, alpha=0.15, lw=0)
         ax.plot(x, mean, color=color, lw=2, marker="o", ms=5, label=agent)
-        ends.append([float(mean[-1]), agent, float(x[-1])])
+        if len(agents) <= DIRECT_LABEL_MAX:
+            ends.append([float(mean[-1]), agent, float(x[-1])])
     _style(ax, ylabel, "Drivers leaving early without warning in the test world (%)")
     ax.set_xlim(left=-0.5, right=ax.get_xlim()[1] * 1.3)
     _direct_labels(ax, ends)
-    ax.legend(frameon=False, fontsize=8, loc="lower left", labelcolor=TEXT)
+    bottom = _legend(fig, ax, agents, "lower left")
     _save(fig, path, "Train/test grid: every agent tested in every world "
-                     "(mean over seeds, band = 95 % CI)")  # fmt: skip
+                     "(mean over seeds, band = 95 % CI)", bottom)  # fmt: skip
 
 
 def plot_learning(
@@ -178,15 +195,17 @@ def plot_learning(
             ax.fill_between(x, s["mean"] - s["std"], s["mean"] + s["std"], color=color,
                             alpha=0.15, lw=0)  # fmt: skip
             ax.plot(x, s["mean"], color=color, lw=2, label=agent)
-            ends.append([float(s["mean"].iloc[-1]), agent, float(x[-1])])
+            if len(agents) <= DIRECT_LABEL_MAX:
+                ends.append([float(s["mean"].iloc[-1]), agent, float(x[-1])])
         _style(ax, title, "Simulator steps (millions)")
         left, right = ax.get_xlim()
         ax.set_xlim(left, right + 0.3 * (right - left))
         _direct_labels(ax, ends)
-    axes[0].legend(frameon=False, fontsize=8, loc="lower right", labelcolor=TEXT)
+    bottom = _legend(fig, axes[0], agents, "lower right")
     _save(
         fig,
         path,
         "Learning curves (mean over seeds, band = ±1 std). Each agent is validated in its "
         "OWN training world: compare agents on the train/test grid, not here.",
+        bottom,
     )
