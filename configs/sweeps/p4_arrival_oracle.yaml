@@ -1,0 +1,26 @@
+# Phase 4, version 2 (ADR-0008): PPO-Oracle with cars arriving at
+# "80 % − the energy the driver takes" (configs/experiments/p4_arrival.yaml).
+# Same oracle changes as p4_oracle.yaml (real departures in the observation,
+# Optimum-real teacher). λ 500 × p0.2 × 10 seeds = 10 runs.
+#   setsid nohup .venv/bin/python scripts/sweep.py configs/sweeps/p4_arrival_oracle.yaml \
+#       > results/logs/p4-arrival-oracle.log 2>&1 < /dev/null &
+
+name: p4-arrival-oracle
+config: configs/experiments/p4_arrival.yaml
+seeds: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+max_parallel: 5
+cleanup_wandb: true
+evaluate:
+  p_early: [0, 0.05, 0.1, 0.2]
+  trajectories: true
+
+grid:
+  lambda:
+    - {label: lam500, set: {env.reward_kwargs.lambda_dep: 500.0}}
+  agent:
+    - label: oracle-p0.2
+      set:
+        agent: PPO-Oracle
+        env.state_function: V2G_profit_max_laxity_dayahead_oracle
+        env.departures: {p_early: 0.2, cut_min: 0.1, cut_max: 0.5}
+        pretrain.expert: optimum-real
