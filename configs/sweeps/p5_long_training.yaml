@@ -1,0 +1,27 @@
+# Phase 5: was PPO undertrained? (approved by Leopold 2026-11-23). In the focused re-run
+# (reports/p4-arrival/) RiskAware λ 1000 was still improving at the end of 6M steps
+# (best checkpoint in the last 20 % for 9 of 10 seeds), and at λ 1000 the simple rule
+# AFAP-target scored better than both PPO agents. Same setup, double the steps:
+#   λ 1000 × {Trusting, RiskAware p0.2} × seeds 0–2, 12M steps = 6 runs (~2 h each).
+# The learning rate is constant, so steps 0–6M match a normal run; compare the 12M
+# result with the 6M runs of the same seeds.
+#   setsid nohup .venv/bin/python scripts/sweep.py configs/sweeps/p5_long_training.yaml \
+#       > results/logs/p5-long-training.log 2>&1 < /dev/null &
+
+name: p5-long-training
+config: configs/experiments/p4_arrival.yaml
+seeds: [0, 1, 2]
+max_parallel: 6
+cleanup_wandb: true
+evaluate:
+  p_early: [0, 0.05, 0.1, 0.2]
+  trajectories: true
+
+grid:
+  lambda:
+    - {label: lam1000, set: {env.reward_kwargs.lambda_dep: 1000.0}}
+  agent:
+    - label: trusting-12M
+      set: {agent: PPO-Trusting, env.departures: null, training.total_timesteps: 12000000}
+    - label: riskaware-p0.2-12M
+      set: {agent: PPO-RiskAware, env.departures: {p_early: 0.2, cut_min: 0.1, cut_max: 0.5}, training.total_timesteps: 12000000}
