@@ -2,7 +2,7 @@
 
 **Goal:** run the full experiment grid of Deliverable 1.
 
-**Status:** 🟢 Main grid done (2026-11-22, 140 runs, results in [`reports/p4-main-grid/`](../../reports/p4-main-grid/README.md)). ADR-0008 (arrival charge consistent with the 80 % target) accepted; focused re-run in progress (`configs/sweeps/p4_arrival_*.yaml`). Every run uses the frozen setup of ADR-0007 (`configs/experiments/p4_main.yaml`, PPO with imitation warm start) and is launched with `scripts/sweep.py` (a sweep file in `configs/sweeps/`); figures and tables with `scripts/make_figures.py`.
+**Status:** 🟢 Main grid done (2026-11-22, 140 runs, results in [`reports/p4-main-grid/`](../../reports/p4-main-grid/README.md)). ADR-0008 (arrival charge consistent with the 80 % target) accepted; focused re-run done (2026-11-22, 50 runs, results in [`reports/p4-arrival/`](../../reports/p4-arrival/README.md): with a real charging need the benefit of RiskAware roughly doubles). Every run uses the frozen setup of ADR-0007 (`configs/experiments/p4_main.yaml`, PPO with imitation warm start) and is launched with `scripts/sweep.py` (a sweep file in `configs/sweeps/`); figures and tables with `scripts/make_figures.py`.
 
 ## Branches
 | Branch | Content |
@@ -21,7 +21,7 @@
 - [x] Every run logged in `EXPERIMENT_LOG.md` (config, seed, commit, hardware, wall-clock) and in wandb
 - [x] Sanity check: no failed / NaN runs; re-run any that crashed (none failed)
 - [x] **ADR-0008:** arrival charge = 80 % − the driver's energy from the data (today cars arrive at 74.7 %, only ~5 points below target), then a focused re-run: λ 500 / 1000 × {Trusting, RiskAware p0.2} × 10 seeds + PPO-Oracle λ 500 (config `p4_arrival.yaml`, `arrival_rule: target`)
-- [ ] Focused re-run done, evaluated and reported (`reports/p4-arrival/`)
+- [x] Focused re-run done, evaluated and reported (`reports/p4-arrival/`)
 
 ## Exit criteria
 - All runs complete, evaluated, logged; aggregated `summary.csv` produced.
